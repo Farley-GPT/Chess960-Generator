@@ -10,7 +10,7 @@
     --primary-color: #2c3e50;
     --secondary-color: #3498db;
     --light-color: #f8f9fa;
-    --dark-color: #35654d; /* Dark green */
+    --dark-color: #408a65; /* Dark green */
     --light-square-color: #eeeed5; /*keep your current off-white*/
     /*--dark-color: #7c6f64;  Nice brown - comment or remove this line*/
 }
@@ -47,29 +47,28 @@
         }
 
         .board {
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 2px;
-            background-color: var(--dark-color);
-            padding: 5px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Board shadow */
-            margin: 20px auto; /* Center the board */
-            max-width: 600px;
-            transition: transform 0.3s; /* Smooth flip transition */
-        }
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+    background-color: #274d3b;  /* Slightly darker green */
+    padding: 5px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Board shadow */
+    margin: 20px auto; /* Center the board */
+    max-width: 600px;
+    transition: transform 0.3s; /* Smooth flip transition */
+}
 
-        .square {
-            aspect-ratio: 1; /* Ensure perfect squares */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative; /* For piece positioning */
-            cursor: pointer;
-        }
+.square {
+    aspect-ratio: 1; /* Ensure perfect squares */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
 
-        .white { background-color: #eeeed5; }  /* Off-white */
-        .black { background-color: var(--dark-color); }
+.white { background-color: var(--light-square-color); }  /* Off-white */
+.black { background-color: var(--dark-color); } /* Dark green */
 
         .piece {
             width: 100%; /* Responsive size */
