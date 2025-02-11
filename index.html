@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess960 Position Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --light-color: #f8f9fa;
+            --dark-color: #7c6f64; /* Nice brown */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #ece9e6 0%, #ffffff 100%); /* Light background gradient */
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.95); /* Slight transparency */
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+            position: relative; /* For absolutely positioned elements inside */
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+        }
+
+        .controls {
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            justify-content: center; /* Center buttons */
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            background-color: var(--dark-color);
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Board shadow */
+            margin: 20px auto; /* Center the board */
+            max-width: 600px;
+            transition: transform 0.3s; /* Smooth flip transition */
+        }
+
+        .square {
+            aspect-ratio: 1; /* Ensure perfect squares */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative; /* For piece positioning */
+            cursor: pointer;
+        }
+
+        .white { background-color: #eeeed5; }  /* Off-white */
+        .black { background-color: var(--dark-color); }
+
+        .piece {
+            width: 75%; /* Responsive size */
+            height: 75%;
+            transition: transform 0.2s; /* Smooth piece movement */
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3)); /* Piece shadow */
+        }
+
+        .piece-rotated {
+            transform: rotate(180deg);
+        }
+
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(145deg, var(--secondary-color), #2980b9); /* Button gradient */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s; /* Smooth hover effect */
+        }
+        button:hover {
+            filter: brightness(1.1); /* Slightly brighter on hover */
+        }
+
+        input {
+            padding: 12px;
+            width: 120px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .position-number {
+            font-size: 1.4em;
+            background: rgba(52, 152, 219, 0.1); /* Light blue background */
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+
+
+        /* History */
+        .history {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(52, 152, 219, 0.05); /* Very light blue background */
+            border-radius: 8px;
+        }
+        .history-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .history-item {
+            cursor: pointer;
+            padding: 5px 10px;
+            background: rgba(52, 152, 219, 0.1); /* Slightly darker blue */
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background-color: rgba(52, 152, 219, 0.2); /* Even darker on hover */
+        }
+
+
+
+        /* FEN Section */
+        .fen-section {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .fen-display {
+            flex-grow: 1; /* Take up remaining space */
+            padding: 8px;
+            background: var(--light-color);
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+
+        /* Modal */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+        }
+
+        /* Loader */
+        .loader {
+            /*  Simple spinner using border properties  */
+            border: 4px solid var(--light-color);
+            border-top: 4px solid var(--secondary-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;  /* Hidden initially */
+            margin: 0 auto; /* Center horizontally */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Flip button */
+        .flip-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;  /* Make it less prominent */
+            color: var(--primary-color);
+            padding: 5px;
+            border-radius: 50%;
+            font-size: 1.2em;
+        }
+
+        .flip-btn:hover{
+          background: rgba(52, 152, 219, 0.1);
+          filter: none;
+        }
+
+        /* Help Icon */
+        .help-icon {
+            margin-left: 8px;
+            cursor: pointer;
+            color: var(--secondary-color);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .board {
+                max-width: 90vw; /* Use viewport width on smaller screens */
+            }
+            .controls {
+                flex-direction: column; /* Stack controls vertically */
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="flip-btn" onclick="toggleBoardFlip()"><i class="fas fa-sync-alt"></i></button>
+        <h1>Chess960 Generator <i class="fas fa-info-circle help-icon" onclick="showHelp()"></i></h1>
+
+        <div class="controls">
+            <button onclick="generateRandom()"><i class="fas fa-dice"></i> Random</button>
+            <input type="number" id="positionInput" min="0" max="959" placeholder="0-959">
+            <button onclick="setPosition()"><i class="fas fa-search"></i> Load</button>
+            <span class="position-number" id="currentPosition"></span>
+        </div>
+
+        <div class="board" id="board"></div>
+        <div class="loader" id="loader"></div>
+
+        <div class="fen-section">
+            <input type="text" class="fen-display" id="fenOutput" readonly>
+            <button onclick="copyFEN()"><i class="fas fa-copy"></i> Copy</button>
+        </div>
+
+        <div class="lichess-button" style="margin-top: 20px; text-align: center;">
+            <button onclick="openLichessEditor()">Lichess Board Editor</button>
+        </div>
+
+        <div class="history">
+            <h3><i class="fas fa-history"></i> Recent Positions</h3>
+            <div class="history-list" id="historyList"></div>
+        </div>
+
+        <div id="helpModal" class="modal">
+            <div class="modal-content">
+                <h2>Chess960 Rules</h2>
+                <p>Chess960 (Fischer Random Chess) features randomized starting positions with these rules:</p>
+                <ul>
+                    <li>Bishops on opposite-colored squares</li>
+                    <li>King between rooks</li>
+                    <li>No two positions are exactly alike</li>
+                </ul>
+                <button onclick="hideHelp()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let positions = {};
+        let isFlipped = false;
+        let history = JSON.parse(localStorage.getItem('chess960-history')) || [];
+        const MAX_HISTORY = 10;
+
+        //  Only the first 12 positions
+        const positionData = "BBQNNRKR|BQNBNRKR|BQNNRBKR|BQNNRKRB|QBBNNRKR|QNBBNRKR|QNBNRBKR|QNBNRKRB|QBNNBRKR|QNNBBRKR|QNNRBBKR|QNNRBKRB|QBNNRKBR|QNNBRKBR|QNNRKBBR|QNNRKRBB|BBNQNRKR|BNQBNRKR|BNQNRBKR|BNQNRKRB|NBBQNRKR|NQBBNRKR|NQBNRBKR|NQBNRKRB|NBQNBRKR|NQNBBRKR|NQNRBBKR|NQNRBKRB|NBQNRKBR|NQNBRKBR|NQNRKBBR|NQNRKRBB|BBNNQRKR|BNNBQRKR|BNNQRBKR|BNNQRKRB|NBBNQRKR|NNBBQRKR|NNBQRBKR|NNBQRKRB|NBNQBRKR|NNQBBRKR|NNQRBBKR|NNQRBKRB|NBNQRKBR|NNQBRKBR|NNQRKBBR|NNQRKRBB|BBNNRQKR|BNNBRQKR|BNNRQBKR|BNNRQKRB|NBBNRQKR|NNBBRQKR|NNBRQBKR|NNBRQKRB|NBNRBQKR|NNRBBQKR|NNRQBBKR|NNRQBKRB|NBNRQKBR|NNRBQKBR|NNRQKBBR|NNRQKRBB|BBNNRKQR|BNNBRKQR|BNNRKBQR|BNNRKQRB|NBBNRKQR|NNBBRKQR|NNBRKBQR|NNBRKQRB|NBNRBKQR|NNRBBKQR|NNRKBBQR|NNRKBQRB|NBNRKQBR|NNRBKQBR|NNRKQBBR|NNRKQRBB|BBNNRKRQ|BNNBRKRQ|BNNRKBRQ|BNNRKRQB|NBBNRKRQ|NNBBRKRQ|NNBRKBRQ|NNBRKRQB|NBNRBKRQ|NNRBBKRQ|NNRKBBRQ|NNRKBRQB|NBNRKRBQ|NNRBKRBQ|NNRKRBBQ|NNRKRQBB|BBQNRNKR|BQNBRNKR|BQNRNBKR|BQNRNKRB|QBBNRNKR|QNBBRNKR|QNBRNBKR|QNBRNKRB|QBNRBNKR|QNRBBNKR|QNRNBBKR|QNRNBKRB|QBNRNKBR|QNRBNKBR|QNRNKBBR|QNRNKRBB|BBNQRNKR|BNQBRNKR|BNQRNBKR|BNQRNKRB|NBBQRNKR|NQBBRNKR|NQBRNBKR|NQBRNKRB|NBQRBNKR|NQRBBNKR|NQRNBBKR|NQRNBKRB|NBQRNKBR|NQRBNKBR|NQRNKBBR|NQRNKRBB|BBNRQNKR|BNRBQNKR|BNRQNBKR|BNRQNKRB|NBBRQNKR|NRBBQNKR|NRBQNBKR|NRBQNKRB|NBRQBNKR|NRQBBNKR|NRQNBBKR|NRQNBKRB|NBRQNKBR|NRQBNKBR|NRQNKBBR|NRQNKRBB|BBNRNQKR|BNRBNQKR|BNRNQBKR|BNRNQKRB|NBBRNQKR|NRBBNQKR|NRBNQBKR|NRBNQKRB|NBRNBQKR|NRNBBQKR|NRNQBBKR|NRNQBKRB|NBRNQKBR|NRNBQKBR|NRNQKBBR|NRNQKRBB|BBNRNKQR|BNRBNKQR|BNRNKBQR|BNRNKQRB|NBBRNKQR|NRBBNKQR|NRBNKBQR|NRBNKQRB|NBRNBKQR|NRNBBKQR|NRNKBBQR|NRNKBQRB|NBRNKQBR|NRNBKQBR|NRNKQBBR|NRNKQRBB|BBNRNKRQ|BNRBNKRQ|BNRNKBRQ|BNRNKRQB|NBBRNKRQ|NRBBNKRQ|NRBNKBRQ|NRBNKRQB|NBRNBKRQ|NRNBBKRQ|NRNKBBRQ|NRNKBRQB|NBRNKRBQ|NRNBKRBQ|NRNKRBBQ|NRNKRQBB|BBQNRKNR|BQNBRKNR|BQNRKBNR|BQNRKNRB|QBBNRKNR|QNBBRKNR|QNBRKBNR|QNBRKNRB|QBNRBKNR|QNRBBKNR|QNRKBBNR|QNRKBNRB|QBNRKNBR|QNRBKNBR|QNRKNBBR|QNRKNRBB|BBNQRKNR|BNQBRKNR|BNQRKBNR|BNQRKNRB|NBBQRKNR|NQBBRKNR|NQBRKBNR|NQBRKNRB|NBQRBKNR|NQRBBKNR|NQRKBBNR|NQRKBNRB|NBQRKNBR|NQRBKNBR|NQRKNBBR|NQRKNRBB|BBNRQKNR|BNRBQKNR|BNRQKBNR|BNRQKNRB|NBBRQKNR|NRBBQKNR|NRBQKBNR|NRBQKNRB|NBRQBKNR|NRQBBKNR|NRQKBBNR|NRQKBNRB|NBRQKNBR|NRQBKNBR|NRQKNBBR|NRQKNRBB|BBNRKQNR|BNRBKQNR|BNRKQBNR|BNRKQNRB|NBBRKQNR|NRBBKQNR|NRBKQBNR|NRBKQNRB|NBRKBQNR|NRKBBQNR|NRKQBBNR|NRKQBNRB|NBRKQNBR|NRKBQNBR|NRKQNBBR|NRKQNRBB|BBNRKNQR|BNRBKNQR|BNRKNBQR|BNRKNQRB|NBBRKNQR|NRBBKNQR|NRBKNBQR|NRBKNQRB|NBRKBNQR|NRKBBNQR|NRKNBBQR|NRKNBQRB|NBRKNQBR|NRKBNQBR|NRKNQBBR|NRKNQRBB|BBNRKNRQ|BNRBKNRQ|BNRKNBRQ|BNRKNRQB|NBBRKNRQ|NRBBKNRQ|NRBKNBRQ|NRBKNRQB|NBRKBNRQ|NRKBBNRQ|NRKNBBRQ|NRKNBRQB|NBRKNRBQ|NRKBNRBQ|NRKNRBBQ|NRKNRQBB|BBQNRKRN|BQNBRKRN|BQNRKBRN|BQNRKRNB|QBBNRKRN|QNBBRKRN|QNBRKBRN|QNBRKRNB|QBNRBKRN|QNRBBKRN|QNRKBBRN|QNRKBRNB|QBNRKRBN|QNRBKRBN|QNRKRBBN|QNRKRNBB|BBNQRKRN|BNQBRKRN|BNQRKBRN|BNQRKRNB|NBBQRKRN|NQBBRKRN|NQBRKBRN|NQBRKRNB|NBQRBKRN|NQRBBKRN|NQRKBBRN|NQRKBRNB|NBQRKRBN|NQRBKRBN|NQRKRBBN|NQRKRNBB|BBNRQKRN|BNRBQKRN|BNRQKBRN|BNRQKRNB|NBBRQKRN|NRBBQKRN|NRBQKBRN|NRBQKRNB|NBRQBKRN|NRQBBKRN|NRQKBBRN|NRQKBRNB|NBRQKRBN|NRQBKRBN|NRQKRBBN|NRQKRNBB|BBNRKQRN|BNRBKQRN|BNRKQBRN|BNRKQRNB|NBBRKQRN|NRBBKQRN|NRBKQBRN|NRBKQRNB|NBRKBQRN|NRKBBQRN|NRKQBBRN|NRKQBRNB|NBRKQRBN|NRKBQRBN|NRKQRBBN|NRKQRNBB|BBNRKRQN|BNRBKRQN|BNRKRBQN|BNRKRQNB|NBBRKRQN|NRBBKRQN|NRBKRBQN|NRBKRQNB|NBRKBRQN|NRKBBRQN|NRKRBBQN|NRKRBQNB|NBRKRQBN|NRKBRQBN|NRKRQBBN|NRKRQNBB|BBNRKRNQ|BNRBKRNQ|BNRKRBNQ|BNRKRNQB|NBBRKRNQ|NRBBKRNQ|NRBKRBNQ|NRBKRNQB|NBRKBRNQ|NRKBBRNQ|NRKRBBNQ|NRKRBNQB|NBRKRNBQ|NRKBRNBQ|NRKRNBBQ|NRKRNQBB|BBQRNNKR|BQRBNNKR|BQRNNBKR|BQRNNKRB|QBBRNNKR|QRBBNNKR|QRBNNBKR|QRBNNKRB|QBRNBNKR|QRNBBNKR|QRNNBBKR|QRNNBKRB|QBRNNKBR|QRNBNKBR|QRNNKBBR|QRNNKRBB|BBRQNNKR|BRQBNNKR|BRQNNBKR|BRQNNKRB|RBBQNNKR|RQBBNNKR|RQBNNBKR|RQBNNKRB|RBQNBNKR|RQNBBNKR|RQNNBBKR|RQNNBKRB|RBQNNKBR|RQNBNKBR|RQNNKBBR|RQNNKRBB|BBRNQNKR|BRNBQNKR|BRNQNBKR|BRNQNKRB|RBBNQNKR|RNBBQNKR|RNBQNBKR|RNBQNKRB|RBNQBNKR|RNQBBNKR|RNQNBBKR|RNQNBKRB|RBNQNKBR|RNQBNKBR|RNQNKBBR|RNQNKRBB|BBRNNQKR|BRNBNQKR|BRNNQBKR|BRNNQKRB|RBBNNQKR|RNBBNQKR|RNBNQBKR|RNBNQKRB|RBNNBQKR|RNNBBQKR|RNNQBBKR|RNNQBKRB|RBNNQKBR|RNNBQKBR|RNNQKBBR|RNNQKRBB|BBRNNKQR|BRNBNKQR|BRNNKBQR|BRNNKQRB|RBBNNKQR|RNBBNKQR|RNBNKBQR|RNBNKQRB|RBNNBKQR|RNNBBKQR|RNNKBBQR|RNNKBQRB|RBNNKQBR|RNNBKQBR|RNNKQBBR|RNNKQRBB|BBRNNKRQ|BRNBNKRQ|BRNNKBRQ|BRNNKRQB|RBBNNKRQ|RNBBNKRQ|RNBNKBRQ|RNBNKRQB|RBNNBKRQ|RNNBBKRQ|RNNKBBRQ|RNNKBRQB|RBNNKRBQ|RNNBKRBQ|RNNKRBBQ|RNNKRQBB|BBQRNKNR|BQRBNKNR|BQRNKBNR|BQRNKNRB|QBBRNKNR|QRBBNKNR|QRBNKBNR|QRBNKNRB|QBRNBKNR|QRNBBKNR|QRNKBBNR|QRNKBNRB|QBRNKNBR|QRNBKNBR|QRNKNBBR|QRNKNRBB|BBRQNKNR|BRQBNKNR|BRQNKBNR|BRQNKNRB|RBBQNKNR|RQBBNKNR|RQBNKBNR|RQBNKNRB|RBQNBKNR|RQNBBKNR|RQNKBBNR|RQNKBNRB|RBQNKNBR|RQNBKNBR|RQNKNBBR|RQNKNRBB|BBRNQKNR|BRNBQKNR|BRNQKBNR|BRNQKNRB|RBBNQKNR|RNBBQKNR|RNBQKBNR|RNBQKNRB|RBNQBKNR|RNQBBKNR|RNQKBBNR|RNQKBNRB|RBNQKNBR|RNQBKNBR|RNQKNBBR|RNQKNRBB|BBRNKQNR|BRNBKQNR|BRNKQBNR|BRNKQNRB|RBBNKQNR|RNBBKQNR|RNBKQBNR|RNBKQNRB|RBNKBQNR|RNKBBQNR|RNKQBBNR|RNKQBNRB|RBNKQNBR|RNKBQNBR|RNKQNBBR|RNKQNRBB|BBRNKNQR|BRNBKNQR|BRNKNBQR|BRNKNQRB|RBBNKNQR|RNBBKNQR|RNBKNBQR|RNBKNQRB|RBNKBNQR|RNKBBNQR|RNKNBBQR|RNKNBQRB|RBNKNQBR|RNKBNQBR|RNKNQBBR|RNKNQRBB|BBRNKNRQ|BRNBKNRQ|BRNKNBRQ|BRNKNRQB|RBBNKNRQ|RNBBKNRQ|RNBKNBRQ|RNBKNRQB|RBNKBNRQ|RNKBBNRQ|RNKNBBRQ|RNKNBRQB|RBNKNRBQ|RNKBNRBQ|RNKNRBBQ|RNKNRQBB|BBQRNKRN|BQRBNKRN|BQRNKBRN|BQRNKRNB|QBBRNKRN|QRBBNKRN|QRBNKBRN|QRBNKRNB|QBRNBKRN|QRNBBKRN|QRNKBBRN|QRNKBRNB|QBRNKRBN|QRNBKRBN|QRNKRBBN|QRNKRNBB|BBRQNKRN|BRQBNKRN|BRQNKBRN|BRQNKRNB|RBBQNKRN|RQBBNKRN|RQBNKBRN|RQBNKRNB|RBQNBKRN|RQNBBKRN|RQNKBBRN|RQNKBRNB|RBQNKRBN|RQNBKRBN|RQNKRBBN|RQNKRNBB|BBRNQKRN|BRNBQKRN|BRNQKBRN|BRNQKRNB|RBBNQKRN|RNBBQKRN|RNBQKBRN|RNBQKRNB|RBNQBKRN|RNQBBKRN|RNQKBBRN|RNQKBRNB|RBNQKRBN|RNQBKRBN|RNQKRBBN|RNQKRNBB|BBRNKQRN|BRNBKQRN|BRNKQBRN|BRNKQRNB|RBBNKQRN|RNBBKQRN|RNBKQBRN|RNBKQRNB|RBNKBQRN|RNKBBQRN|RNKQBBRN|RNKQBRNB|RBNKQRBN|RNKBQRBN|RNKQRBBN|RNKQRNBB|BBRNKRQN|BRNBKRQN|BRNKRBQN|BRNKRQNB|RBBNKRQN|RNBBKRQN|RNBKRBQN|RNBKRQNB|RBNKBRQN|RNKBBRQN|RNKRBBQN|RNKRBQNB|RBNKRQBN|RNKBRQBN|RNKRQBBN|RNKRQNBB|BBRNKRNQ|BRNBKRNQ|BRNKRBNQ|BRNKRNQB|RBBNKRNQ|RNBBKRNQ|RNBKRBNQ|RNBKRNQB|RBNKBRNQ|RNKBBRNQ|RNKRBBNQ|RNKRBNQB|RBNKRNBQ|RNKBRNBQ|RNKRNBBQ|RNKRNQBB|BBQRKNNR|BQRBKNNR|BQRKNBNR|BQRKNNRB|QBBRKNNR|QRBBKNNR|QRBKNBNR|QRBKNNRB|QBRKBNNR|QRKBBNNR|QRKNBBNR|QRKNBNRB|QBRKNNBR|QRKBNNBR|QRKNNBBR|QRKNNRBB|BBRQKNNR|BRQBKNNR|BRQKNBNR|BRQKNNRB|RBBQKNNR|RQBBKNNR|RQBKNBNR|RQBKNNRB|RBQKBNNR|RQKBBNNR|RQKNBBNR|RQKNBNRB|RBQKNNBR|RQKBNNBR|RQKNNBBR|RQKNNRBB|BBRKQNNR|BRKBQNNR|BRKQNBNR|BRKQNNRB|RBBKQNNR|RKBBQNNR|RKBQNBNR|RKBQNNRB|RBKQBNNR|RKQBBNNR|RKQNBBNR|RKQNBNRB|RBKQNNBR|RKQBNNBR|RKQNNBBR|RKQNNRBB|BBRKNQNR|BRKBNQNR|BRKNQBNR|BRKNQNRB|RBBKNQNR|RKBBNQNR|RKBNQBNR|RKBNQNRB|RBKNBQNR|RKNBBQNR|RKNQBBNR|RKNQBNRB|RBKNQNBR|RKNBQNBR|RKNQNBBR|RKNQNRBB|BBRKNNQR|BRKBNNQR|BRKNNBQR|BRKNNQRB|RBBKNNQR|RKBBNNQR|RKBNNBQR|RKBNNQRB|RBKNBNQR|RKNBBNQR|RKNNBBQR|RKNNBQRB|RBKNNQBR|RKNBNQBR|RKNNQBBR|RKNNQRBB|BBRKNNRQ|BRKBNNRQ|BRKNNBRQ|BRKNNRQB|RBBKNNRQ|RKBBNNRQ|RKBNNBRQ|RKBNNRQB|RBKNBNRQ|RKNBBNRQ|RKNNBBRQ|RKNNBRQB|RBKNNRBQ|RKNBNRBQ|RKNNRBBQ|RKNNRQBB|BBQRKNRN|BQRBKNRN|BQRKNBRN|BQRKNRNB|QBBRKNRN|QRBBKNRN|QRBKNBRN|QRBKNRNB|QBRKBNRN|QRKBBNRN|QRKNBBRN|QRKNBRNB|QBRKNRBN|QRKBNRBN|QRKNRBBN|QRKNRNBB|BBRQKNRN|BRQBKNRN|BRQKNBRN|BRQKNRNB|RBBQKNRN|RQBBKNRN|RQBKNBRN|RQBKNRNB|RBQKBNRN|RQKBBNRN|RQKNBBRN|RQKNBRNB|RBQKNRBN|RQKBNRBN|RQKNRBBN|RQKNRNBB|BBRKQNRN|BRKBQNRN|BRKQNBRN|BRKQNRNB|RBBKQNRN|RKBBQNRN|RKBQNBRN|RKBQNRNB|RBKQBNRN|RKQBBNRN|RKQNBBRN|RKQNBRNB|RBKQNRBN|RKQBNRBN|RKQNRBBN|RKQNRNBB|BBRKNQRN|BRKBNQRN|BRKNQBRN|BRKNQRNB|RBBKNQRN|RKBBNQRN|RKBNQBRN|RKBNQRNB|RBKNBQRN|RKNBBQRN|RKNQBBRN|RKNQBRNB|RBKNQRBN|RKNBQRBN|RKNQRBBN|RKNQRNBB|BBRKNRQN|BRKBNRQN|BRKNRBQN|BRKNRQNB|RBBKNRQN|RKBBNRQN|RKBNRBQN|RKBNRQNB|RBKNBRQN|RKNBBRQN|RKNRBBQN|RKNRBQNB|RBKNRQBN|RKNBRQBN|RKNRQBBN|RKNRQNBB|BBRKNRNQ|BRKBNRNQ|BRKNRBNQ|BRKNRNQB|RBBKNRNQ|RKBBNRNQ|RKBNRBNQ|RKBNRNQB|RBKNBRNQ|RKNBBRNQ|RKNRBBNQ|RKNRBNQB|RBKNRNBQ|RKNBRNBQ|RKNRNBBQ|RKNRNQBB|BBQRKRNN|BQRBKRNN|BQRKRBNN|BQRKRNNB|QBBRKRNN|QRBBKRNN|QRBKRBNN|QRBKRNNB|QBRKBRNN|QRKBBRNN|QRKRBBNN|QRKRBNNB|QBRKRNBN|QRKBRNBN|QRKRNBBN|QRKRNNBB|BBRQKRNN|BRQBKRNN|BRQKRBNN|BRQKRNNB|RBBQKRNN|RQBBKRNN|RQBKRBNN|RQBKRNNB|RBQKBRNN|RQKBBRNN|RQKRBBNN|RQKRBNNB|RBQKRNBN|RQKBRNBN|RQKRNBBN|RQKRNNBB|BBRKQRNN|BRKBQRNN|BRKQRBNN|BRKQRNNB|RBBKQRNN|RKBBQRNN|RKBQRBNN|RKBQRNNB|RBKQBRNN|RKQBBRNN|RKQRBBNN|RKQRBNNB|RBKQRNBN|RKQBRNBN|RKQRNBBN|RKQRNNBB|BBRKRQNN|BRKBRQNN|BRKRQBNN|BRKRQNNB|RBBKRQNN|RKBBRQNN|RKBRQBNN|RKBRQNNB|RBKRBQNN|RKRBBQNN|RKRQBBNN|RKRQBNNB|RBKRQNBN|RKRBQNBN|RKRQNBBN|RKRQNNBB|BBRKRNQN|BRKBRNQN|BRKRNBQN|BRKRNQNB|RBBKRNQN|RKBBRNQN|RKBRNBQN|RKBRNQNB|RBKRBNQN|RKRBBNQN|RKRNBBQN|RKRNBQNB|RBKRNQBN|RKRBNQBN|RKRNQBBN|RKRNQNBB|BBRKRNNQ|BRKBRNNQ|BRKRNBNQ|BRKRNNQB|RBBKRNNQ|RKBBRNNQ|RKBRNBNQ|RKBRNNQB|RBKRBNNQ|RKRBBNNQ|RKRNBBNQ|RKRNBNQB|RBKRNNBQ|RKRBNNBQ|RKRNNBBQ|RKRNNQBB|";
+        positionData.split('|').forEach((pos, i) => positions[i] = pos);
+
+
+        function createBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const colorClass = (row + col) % 2 === 0 ? 'white' : 'black';
+                    square.className = `square ${colorClass}`;
+                    square.dataset.coord = `${files[col]}${ranks[row]}`;
+                    board.appendChild(square);
+                }
+            }
+        }
+
+
+        function setPiece(row, col, piece, color) {
+            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+
+            const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+            square.innerHTML = '';
+
+            if (piece) {
+                const img = document.createElement('img');
+                img.src = `pieces/${color}${piece.toUpperCase()}.svg`;
+                img.className = 'piece';
+                img.alt = `${color} ${piece}`;
+                if (isFlipped) {
+                    img.classList.add('piece-rotated');
+                }
+                square.appendChild(img);
+            }
+        }
+
+        function setPositionFromString(positionString) {
+            createBoard();
+            const pieces = positionString.split('');
+
+              for (let col = 0; col < 8; col++) {
+                const piece = positionString[col];
+                setPiece(0, col, piece, 'b');
+                setPiece(7, col, piece, 'w');
+                setPiece(1, col, 'p', 'b');
+                setPiece(6, col, 'p', 'w');
+              }
+
+            for (let row = 2; row < 6; row++) {
+                for (let col = 0; col < 8; col++) {
+                    setPiece(row, col, null, null);
+                }
+            }
+            updateFENDisplay();
+        }
+
+
+        function generateRandom() {
+            const position = Math.floor(Math.random() * 960);  //Still up to 960 to keep numbering
+            setPositionByNumber(position);
+        }
+
+        function setPosition() {
+            const input = document.getElementById('positionInput');
+            const position = parseInt(input.value, 10);
+
+            if (position >= 0 && position <= 959) {
+                setPositionByNumber(position);
+            } else {
+                alert('Invalid position number.  Please enter a number between 0 and 959.');
+            }
+        }
+
+        function setPositionByNumber(position) {
+            showLoader(true);
+            setTimeout(() => {
+                document.getElementById('currentPosition').textContent = `Position: ${position}`;
+                document.getElementById('positionInput').value = position;
+
+                if (positions[position] === undefined) {
+                     alert("Sorry, that position isn't loaded in this demo");
+                     return;
+                }
+
+                setPositionFromString(positions[position]);
+                addToHistory(position);
+                showLoader(false);
+            }, 300);
+        }
+
+        function addToHistory(position) {
+            history = [position, ...history.filter(p => p !== position)].slice(0, MAX_HISTORY);
+            localStorage.setItem('chess960-history', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = history.map(pos =>
+                `<div class="history-item" onclick="setPositionByNumber(${pos})">
+                    ${pos}: ${positions[pos]}
+                </div>`
+            ).join('');
+        }
+
+        function generateFEN() {
+            const position = positions[document.getElementById('positionInput').value];
+            if (position === undefined) {
+                return "";
+            }
+
+            let fen = "";
+
+            const ranks = isFlipped ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+            const files = isFlipped ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+
+            for (let row = 0; row < 8; row++) {
+                let emptyCount = 0;
+                for (let col = 0; col < 8; col++) {
+                  const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+                  if(square.firstChild)
+                  {
+                    if (emptyCount > 0) {
+                        fen += emptyCount;
+                        emptyCount = 0;
+                    }
+                    const piece = square.firstChild.alt;
+                    const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
+                    fen += pieceChar;
+
+                  } else {
+                    emptyCount++;
+                  }
+                }
+                if (emptyCount > 0) {
+                    fen += emptyCount;
+                }
+                if (row < 7) {
+                    fen += "/";
+                }
+            }
+            fen += " w KQkq - 0 1";
+            return fen;
+        }
+
+        function updateFENDisplay() {
+            document.getElementById('fenOutput').value = generateFEN();
+        }
+
+        function copyFEN() {
+          const fenOutput = document.getElementById('fenOutput');
+          navigator.clipboard.writeText(fenOutput.value).then(() => {
+            const copyButton = document.querySelector('.fen-section button');
+            copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            }, 2000);
+          });
+        }
+
+        function toggleBoardFlip() {
+            isFlipped = !isFlipped;
+            document.getElementById('board').style.transform = isFlipped ? 'rotate(180deg)' : '';
+            document.querySelectorAll('.piece').forEach(piece => {
+                piece.classList.toggle('piece-rotated', isFlipped);
+            });
+
+            createBoard();
+            setPositionByNumber(document.getElementById('positionInput').value);
+        }
+
+       function openLichessEditor() {
+            const fen = generateFEN();
+            // Correctly format the FEN for Lichess URL:
+            const fenParts = fen.split(" "); // Split the FEN into its components
+            const boardState = fenParts[0].replace(/\//g, "/");  // Ensure slashes are present
+            const formattedFen = fenParts.join("_");
+            const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
+            window.open(lichessUrl, '_blank');
+        }
+
+
+        function showHelp() {
+            document.getElementById('helpModal').style.display = 'flex';
+        }
+
+        function hideHelp() {
+            document.getElementById('helpModal').style.display = 'none';
+        }
+
+        function showLoader(show) {
+            document.getElementById('loader').style.display = show ? 'block' : 'none';
+        }
+
+
+        createBoard();
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialPosition = urlParams.get('pos') || 0;
+        setPositionByNumber(initialPosition);
+        renderHistory();
+
+
+    </script>
+</body>
+</html>
