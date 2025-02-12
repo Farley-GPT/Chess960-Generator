@@ -102,7 +102,7 @@
             font-size: 0.75em;
             color: rgba(0,0,0,0.5);
             position: relative; /* For absolute positioning */
-            transition: background-color 0.2s ease;
+            transition: background-color: 0.2s ease;
         }
         .square:hover {
             background-color: rgba(0, 0, 0, 0.05); /* Subtle hover feedback */
@@ -235,6 +235,23 @@
             opacity: 1;
             transform: translateY(0);
         }
+          /* Container for position number and navigation buttons */
+        .position-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px; /* Add some spacing */
+        }
+        .position-nav-buttons {
+            display: flex; /* This will keep the buttons together */
+            gap: 5px; /* Space between the buttons */
+        }
+        .position-nav-buttons button {
+            padding: 8px 12px;  /*Smaller buttons for nav*/
+        }
+
+
 
         .history {
             margin-top: 25px;
@@ -461,6 +478,9 @@
             input[type="number"], .fen-display {
                 width: 100%; /* Full width on small screens */
             }
+            .position-controls{
+                flex-direction: column;
+            }
         }
 
         /* Algebraic Notations Section */
@@ -545,15 +565,6 @@
             gap: 10px;
             margin-top: 10px;
         }
-        .position-nav-buttons{
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-
-
     </style>
 </head>
 <body>
@@ -572,11 +583,12 @@
             <input type="number" id="positionInput" min="0" max="959" placeholder="0-959" aria-label="Chess960 Position Number">
             <button onclick="setPosition(); playSound('positionSound')"><i class="fas fa-search"></i> Load</button>
             <button onclick="resetBoard(); playSound('positionSound')"><i class="fas fa-undo"></i> Reset</button>
+        </div>
+        <div class="position-controls">
             <div class="position-nav-buttons">
                 <button onclick="previousPosition(); playSound('positionSound')"><i class="fas fa-chevron-left"></i> Prev</button>
                 <button onclick="nextPosition(); playSound('positionSound')">Next <i class="fas fa-chevron-right"></i></button>
             </div>
-
             <span class="position-number" id="currentPosition"></span>
         </div>
 
@@ -765,387 +777,386 @@
         }
 
         function resetBoardToFEN(fen) {
-            createBoard();
-            const fenParts = fen.split(" ");
-            const piecePlacement = fenParts[0];
-            const ranks = piecePlacement.split("/");
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-            const boardRanks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+    createBoard();
+    const fenParts = fen.split(" ");
+    const piecePlacement = fenParts[0];
+    const ranks = piecePlacement.split("/");
+    const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const boardRanks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
 
-            for (let r = 0; r < 8; r++) {
-                let fileIndex = 0;
-                for (let char of ranks[r]) {
-                    if (isNaN(char)) {
-                        const color = (char === char.toUpperCase()) ? 'w' : 'b';
-                        const pieceType = char.toLowerCase();
-                        setPiece(r, fileIndex, pieceType, color);
-                        fileIndex++;
-                    } else {
-                        fileIndex += parseInt(char);
-                    }
-                }
-            }
-            updateFENDisplay(fen);
-            resetMoveHistory(); // Clear move history when loading from FEN
-            //Removed updateNavigationButtons()
-        }
-
-
-        function generateRandom() {
-            const position = Math.floor(Math.random() * 960);
-            setPositionByNumber(position);
-        }
-
-        function setPosition() {
-            const input = document.getElementById('positionInput');
-            const position = parseInt(input.value, 10);
-
-            if (position >= 0 && position <= 959) {
-                setPositionByNumber(position);
+    for (let r = 0; r < 8; r++) {
+        let fileIndex = 0;
+        for (let char of ranks[r]) {
+            if (isNaN(char)) {
+                const color = (char === char.toUpperCase()) ? 'w' : 'b';
+                const pieceType = char.toLowerCase();
+                setPiece(r, fileIndex, pieceType, color);
+                fileIndex++;
             } else {
-                alert('Invalid position number.  Please enter a number between 0 and 959.');
+                fileIndex += parseInt(char);
             }
         }
-        
-        function previousPosition() {
-            let newPosition = currentPositionNumber - 1;
-            if (newPosition < 0) {
-                newPosition = 959; // Wrap around
+    }
+    updateFENDisplay(fen);
+    resetMoveHistory(); // Clear move history when loading from FEN
+    //Removed updateNavigationButtons()
+}
+
+
+function generateRandom() {
+    const position = Math.floor(Math.random() * 960);
+    setPositionByNumber(position);
+}
+
+function setPosition() {
+    const input = document.getElementById('positionInput');
+    const position = parseInt(input.value, 10);
+
+    if (position >= 0 && position <= 959) {
+        setPositionByNumber(position);
+    } else {
+        alert('Invalid position number.  Please enter a number between 0 and 959.');
+    }
+}
+
+function previousPosition() {
+    let newPosition = currentPositionNumber - 1;
+    if (newPosition < 0) {
+        newPosition = 959; // Wrap around
+    }
+    setPositionByNumber(newPosition);
+}
+
+function nextPosition() {
+    let newPosition = currentPositionNumber + 1;
+    if (newPosition > 959) {
+        newPosition = 0; // Wrap around
+    }
+    setPositionByNumber(newPosition);
+}
+
+
+function setPositionByNumber(position) {
+    showLoader(true);
+    currentPositionElement.classList.remove('show');
+    setTimeout(() => {
+        currentPositionElement.textContent = `Position: ${position}`;
+        currentPositionElement.classList.add('show');
+    }, 300);
+
+    document.getElementById('positionInput').value = position;
+    currentPositionNumber = position; // Store the current position number
+
+    setTimeout(() => {
+        if (positions[position] === undefined) {
+            alert("Sorry, could not set position");
+            showLoader(false);
+            return;
+        }
+        setPositionFromString(positions[position]);
+        addToHistory(position);
+        showLoader(false);
+    }, 500);
+}
+
+function resetBoard() {
+    setPositionByNumber(currentPositionNumber); // Reset to the current position number
+}
+
+
+function addToHistory(position) {
+    const positionString = String(position);
+    history = history.filter(p => p !== positionString);
+    history.unshift(positionString);
+    history = history.slice(0, MAX_HISTORY);
+    localStorage.setItem('chess960-history', JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    list.innerHTML = history.map(pos => {
+        const positionString = positions[pos] || 'Loading...';
+        return `<div class="history-item" onclick="setPositionByNumber(${pos}); playSound('clickSound')">
+            ${pos}: ${positionString}
+        </div>`;
+    }).join('');
+}
+
+function generateFEN() {
+    let fen = "";
+    const ranks = isFlipped ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+    const files = isFlipped ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+
+    for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+          const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+          if(square.firstChild) {
+            if (emptyCount > 0) {
+                fen += emptyCount;
+                emptyCount = 0;
             }
-            setPositionByNumber(newPosition);
+            const piece = square.firstChild.alt;
+            const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
+            fen += pieceChar;
+          } else {
+            emptyCount++;
+          }
         }
-
-        function nextPosition() {
-            let newPosition = currentPositionNumber + 1;
-            if (newPosition > 959) {
-                newPosition = 0; // Wrap around
-            }
-            setPositionByNumber(newPosition);
+        if (emptyCount > 0) {
+            fen += emptyCount;
         }
-
-
-        function setPositionByNumber(position) {
-            showLoader(true);
-            currentPositionElement.classList.remove('show');
-            setTimeout(() => {
-                currentPositionElement.textContent = `Position: ${position}`;
-                currentPositionElement.classList.add('show');
-            }, 300);
-
-            document.getElementById('positionInput').value = position;
-            currentPositionNumber = position; // Store the current position number
-
-            setTimeout(() => {
-                if (positions[position] === undefined) {
-                    alert("Sorry, could not set position");
-                    showLoader(false);
-                    return;
-                }
-                setPositionFromString(positions[position]);
-                addToHistory(position);
-                showLoader(false);
-            }, 500);
+        if (row < 7) {
+            fen += "/";
         }
+    }
+    fen += " w KQkq - 0 1";
+    return fen;
+}
 
-        function resetBoard() {
-            setPositionByNumber(currentPositionNumber); // Reset to the current position number
-        }
+function updateFENDisplay(fen = null) {
+    currentFEN = fen || generateFEN();
+    document.getElementById('fenOutput').value = currentFEN;
+}
 
+function copyFEN() {
+  const fenOutput = document.getElementById('fenOutput');
+  navigator.clipboard.writeText(fenOutput.value).then(() => {
+    const copyButton = document.querySelector('.fen-section button');
+    copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    setTimeout(() => {
+        copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy FEN';
+    }, 2000);
+  });
+}
 
-        function addToHistory(position) {
-            const positionString = String(position);
-            history = history.filter(p => p !== positionString);
-            history.unshift(positionString);
-            history = history.slice(0, MAX_HISTORY);
-            localStorage.setItem('chess960-history', JSON.stringify(history));
-            renderHistory();
-        }
+function toggleBoardFlip() {
+    isFlipped = !isFlipped;
+    const board = document.getElementById('board');
+    board.classList.toggle('rotated', isFlipped);
+    const pieces = document.querySelectorAll('.piece');
+    pieces.forEach(piece => {
+        piece.classList.toggle('piece-rotated', isFlipped);
+    });
+    createBoard();
+    resetBoardToFEN(currentFEN); // Re-render board with current FEN after flip
+}
 
-        function renderHistory() {
-            const list = document.getElementById('historyList');
-            list.innerHTML = history.map(pos => {
-                const positionString = positions[pos] || 'Loading...';
-                return `<div class="history-item" onclick="setPositionByNumber(${pos}); playSound('clickSound')">
-                    ${pos}: ${positionString}
-                </div>`;
-            }).join('');
-        }
+function openLichessEditor() {
+    const fen = generateFEN();
+    const fenParts = fen.split(" ");
+    const formattedFen = fenParts.join("_");
+    const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
+    window.open(lichessUrl, '_blank');
+}
 
-        function generateFEN() {
-            let fen = "";
-            const ranks = isFlipped ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
-            const files = isFlipped ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+function showHelp() {
+    const modal = document.getElementById('helpModal');
+    modal.classList.add('show');
+}
 
-            for (let row = 0; row < 8; row++) {
-                let emptyCount = 0;
-                for (let col = 0; col < 8; col++) {
-                  const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
-                  if(square.firstChild) {
-                    if (emptyCount > 0) {
-                        fen += emptyCount;
-                        emptyCount = 0;
-                    }
-                    const piece = square.firstChild.alt;
-                    const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
-                    fen += pieceChar;
-                  } else {
-                    emptyCount++;
-                  }
-                }
-                if (emptyCount > 0) {
-                    fen += emptyCount;
-                }
-                if (row < 7) {
-                    fen += "/";
-                }
-            }
-            fen += " w KQkq - 0 1";
-            return fen;
-        }
+function hideHelp() {
+    const modal = document.getElementById('helpModal');
+    modal.classList.remove('show');
+}
 
-        function updateFENDisplay(fen = null) {
-            currentFEN = fen || generateFEN();
-            document.getElementById('fenOutput').value = currentFEN;
-        }
+function showLoader(show) {
+    const loader = document.getElementById('loader');
+    if (show) {
+        loader.classList.add('show');
+    } else {
+        void loader.offsetWidth;
+        loader.classList.remove('show');
+    }
+}
 
-        function copyFEN() {
-          const fenOutput = document.getElementById('fenOutput');
-          navigator.clipboard.writeText(fenOutput.value).then(() => {
-            const copyButton = document.querySelector('.fen-section button');
-            copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            setTimeout(() => {
-                copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy FEN';
-            }, 2000);
-          });
-        }
+let draggedPiece = null;
+let startSquare = null;
 
-        function toggleBoardFlip() {
-            isFlipped = !isFlipped;
-            const board = document.getElementById('board');
-            board.classList.toggle('rotated', isFlipped);
-            const pieces = document.querySelectorAll('.piece');
-            pieces.forEach(piece => {
-                piece.classList.toggle('piece-rotated', isFlipped);
-            });
-            createBoard();
-            resetBoardToFEN(currentFEN); // Re-render board with current FEN after flip
-        }
+function dragStart(event) {
+    draggedPiece = event.target;
+    startSquare = event.target.parentNode;
+    setTimeout(() => {
+        draggedPiece.classList.add('hidden');
+    }, 0);
+}
 
-       function openLichessEditor() {
-            const fen = generateFEN();
-            const fenParts = fen.split(" ");
-            const formattedFen = fenParts.join("_");
-            const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
-            window.open(lichessUrl, '_blank');
-        }
+function allowDrop(event) {
+    event.preventDefault();
+    const targetSquare = event.target.closest('.square');
+    if(targetSquare) {
+        targetSquare.classList.add('drag-over');
+    }
+}
 
-        function showHelp() {
-            const modal = document.getElementById('helpModal');
-            modal.classList.add('show');
-        }
+function dragLeave(event) {
+    event.preventDefault();
+    const targetSquare = event.target.closest('.square');
+    if (targetSquare) {
+        targetSquare.classList.remove('drag-over');
+    }
+}
 
-        function hideHelp() {
-            const modal = document.getElementById('helpModal');
-            modal.classList.remove('show');
-        }
+function dropPiece(event) {
+    event.preventDefault();
+    if (!draggedPiece) return;
 
-        function showLoader(show) {
-            const loader = document.getElementById('loader');
-            if (show) {
-                loader.classList.add('show');
-            } else {
-                void loader.offsetWidth;
-                loader.classList.remove('show');
-            }
-        }
+    const targetSquare = event.target.closest('.square');
+     //Remove the drag-over class:
+    targetSquare.classList.remove('drag-over');
 
-        let draggedPiece = null;
-        let startSquare = null;
-
-        function dragStart(event) {
-            draggedPiece = event.target;
-            startSquare = event.target.parentNode;
-            setTimeout(() => {
-                draggedPiece.classList.add('hidden');
-            }, 0);
-        }
-
-        function allowDrop(event) {
-            event.preventDefault();
-            const targetSquare = event.target.closest('.square');
-            if(targetSquare) {
-                targetSquare.classList.add('drag-over');
-            }
-        }
-
-        function dragLeave(event) {
-            event.preventDefault();
-            const targetSquare = event.target.closest('.square');
-            if (targetSquare) {
-                targetSquare.classList.remove('drag-over');
-            }
-        }
-
-        function dropPiece(event) {
-            event.preventDefault();
-            if (!draggedPiece) return;
-
-            const targetSquare = event.target.closest('.square');
-             //Remove the drag-over class:
-            targetSquare.classList.remove('drag-over');
-
-            if (!targetSquare || targetSquare === startSquare) {
-                 draggedPiece.classList.remove('hidden');
-                 draggedPiece = null;
-                 startSquare = null;
-                return;
-            }
+    if (!targetSquare || targetSquare === startSquare) {
+         draggedPiece.classList.remove('hidden');
+         draggedPiece = null;
+         startSquare = null;
+        return;
+    }
 
 
-            // Basic move validation (can move to any empty square or capture)
-            if (targetSquare.firstChild) {
-                if (targetSquare.firstChild.alt.startsWith(draggedPiece.alt.split(' ')[0])) { // Check if target has same color piece
-                    draggedPiece.classList.remove('hidden');
-                    draggedPiece = null;
-                    startSquare = null;
-                    return; // Cannot capture own piece
-                }
-            }
-
-            // Perform move
-            movePiece(startSquare, targetSquare);
-            playSound('moveSound');
-            draggedPiece.classList.remove('hidden'); // Make the piece visible again
+    // Basic move validation (can move to any empty square or capture)
+    if (targetSquare.firstChild) {
+        if (targetSquare.firstChild.alt.startsWith(draggedPiece.alt.split(' ')[0])) { // Check if target has same color piece
+            draggedPiece.classList.remove('hidden');
             draggedPiece = null;
             startSquare = null;
+            return; // Cannot capture own piece
         }
+    }
 
-        function movePiece(fromSquare, toSquare) {
-            const piece = fromSquare.firstChild;
-            const pieceName = piece.alt.split(' ')[1];
-            const pieceColor = piece.alt.split(' ')[0];
-            const fromCoord = fromSquare.dataset.coord;
-            const toCoord = toSquare.dataset.coord;
+    // Perform move
+    movePiece(startSquare, targetSquare);
+    playSound('moveSound');
+    draggedPiece.classList.remove('hidden'); // Make the piece visible again
+    draggedPiece = null;
+    startSquare = null;
+}
 
-            // Capture logic: remove piece from target square if it exists
-            if (toSquare.firstChild) {
-                toSquare.innerHTML = ''; // Remove the piece in the target square (capture)
-            }
+function movePiece(fromSquare, toSquare) {
+    const piece = fromSquare.firstChild;
+    const pieceName = piece.alt.split(' ')[1];
+    const pieceColor = piece.alt.split(' ')[0];
+    const fromCoord = fromSquare.dataset.coord;
+    const toCoord = toSquare.dataset.coord;
 
-            // Update board state
-            boardState[toCoord] = boardState[fromCoord];
-            delete boardState[fromCoord];
+    // Capture logic: remove piece from target square if it exists
+    if (toSquare.firstChild) {
+        toSquare.innerHTML = ''; // Remove the piece in the target square (capture)
+    }
 
-            // Move piece visually
-            toSquare.appendChild(piece);
+    // Update board state
+    boardState[toCoord] = boardState[fromCoord];
+    delete boardState[fromCoord];
 
-            // Update FEN and move history
-            updateFENDisplay();
-            recordMove(fromCoord, toCoord, pieceName, pieceColor);
-            clearLastMoveHighlight();
-            highlightLastMove(fromCoord, toCoord);
-        }
+    // Move piece visually
+    toSquare.appendChild(piece);
 
-        function recordMove(fromCoord, toCoord, pieceName, pieceColor) {
-            const notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, toCoord); // Pass toCoord for capture notation
-            moveHistory.push({ from: fromCoord, to: toCoord, notation: notation, fen: currentFEN });
-            notationHistory.push(notation);
-            currentMoveIndex++;
-            renderNotationHistory();
-            //Removed updateNavigationButtons()
-        }
+    // Update FEN and move history
+    updateFENDisplay();
+    recordMove(fromCoord, toCoord, pieceName, pieceColor);
+    clearLastMoveHighlight();
+    highlightLastMove(fromCoord, toCoord);
+}
 
-        function convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, targetSquareCoord) {
-            // Basic algebraic notation (no disambiguation, checks, mates, promotions for now)
-            let notation = pieceName[0].toUpperCase(); // Piece type (Pawn omitted)
-            if (pieceName === 'p') notation = ""; // Pawn notation is just the square
+function recordMove(fromCoord, toCoord, pieceName, pieceColor) {
+    const notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, toCoord); // Pass toCoord for capture notation
+    moveHistory.push({ from: fromCoord, to: toCoord, notation: notation, fen: currentFEN });
+    notationHistory.push(notation);
+    currentMoveIndex++;
+    renderNotationHistory();
+    //Removed updateNavigationButtons()
+}
 
-            const isCapture = document.querySelector(`.square[data-coord="${targetSquareCoord}"]`).firstChild !== null;
-            let captureSymbol = '';
-            if (isCapture && pieceName === 'p') {
-                captureSymbol = fromCoord[0] + 'x'; // Pawn capture notation
-            } else if (isCapture) {
-                captureSymbol = 'x'; // Piece capture notation
-            } else {
-                captureSymbol = ''; // No capture
-            }
+function convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, targetSquareCoord) {
+    // Basic algebraic notation (no disambiguation, checks, mates, promotions for now)
+    let notation = pieceName[0].toUpperCase(); // Piece type (Pawn omitted)
+    if (pieceName === 'p') notation = ""; // Pawn notation is just the square
 
-            return notation + captureSymbol + toCoord; // Correct notation format
-        }
+    const isCapture = document.querySelector(`.square[data-coord="${targetSquareCoord}"]`).firstChild !== null;
+    let captureSymbol = '';
+    if (isCapture && pieceName === 'p') {
+        captureSymbol = fromCoord[0] + 'x'; // Pawn capture notation
+    } else if (isCapture) {
+        captureSymbol = 'x'; // Piece capture notation
+    } else {
+        captureSymbol = ''; // No capture
+    }
+
+    return notation + captureSymbol + toCoord; // Correct notation format
+}
 
 
-        function renderNotationHistory() {
-            const notationList = document.getElementById('notationList');
-            notationList.innerHTML = notationHistory.map((notation, index) => {
-                const isCurrentMove = index === currentMoveIndex;
-                return `<div class="notation-item ${isCurrentMove ? 'current-move' : ''}" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
-            }).join('');
-        }
+function renderNotationHistory() {
+    const notationList = document.getElementById('notationList');
+    notationList.innerHTML = notationHistory.map((notation, index) => {
+        const isCurrentMove = index === currentMoveIndex;
+        return `<div class="notation-item ${isCurrentMove ? 'current-move' : ''}" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
+    }).join('');
+}
 
-        function gotoMove(index) {
-            if (index < -1 || index >= moveHistory.length) return; // Allow index -1 to go to initial position
+function gotoMove(index) {
+    if (index < -1 || index >= moveHistory.length) return; // Allow index -1 to go to initial position
 
-            currentMoveIndex = index;
-            if (index === -1) {
-                setPositionByNumber(currentPositionNumber); // Reset to initial position
-            } else {
-                const fenToLoad = moveHistory[index].fen;
-                resetBoardToFEN(fenToLoad);
-            }
+    currentMoveIndex = index;
+    if (index === -1) {
+        setPositionByNumber(currentPositionNumber); // Reset to initial position
+    } else {
+        const fenToLoad = moveHistory[index].fen;
+        resetBoardToFEN(fenToLoad);
+    }
 
-            // Re-render notations to reflect current move index (optional visual cue)
-            renderNotationHistory();
-            //Removed updateNavigationButtons();
-            clearLastMoveHighlight();
-            if (index >= 0) {
-                const move = moveHistory[index];
-                highlightLastMove(move.from, move.to);
-            }
-        }
+    // Re-render notations to reflect current move index (optional visual cue)
+    renderNotationHistory();
+    //Removed updateNavigationButtons();
+    clearLastMoveHighlight();
+    if (index >= 0) {
+        const move = moveHistory[index];
+        highlightLastMove(move.from, move.to);
+    }
+}
 
-        function resetMoveHistory() {
-            moveHistory = [];
-            notationHistory = [];
-            currentMoveIndex = -1;
-            renderNotationHistory();
-            clearLastMoveHighlight();
-            //Removed updateNavigationButtons()
-        }
+function resetMoveHistory() {
+    moveHistory = [];
+    notationHistory = [];
+    currentMoveIndex = -1;
+    renderNotationHistory();
+    clearLastMoveHighlight();
+    //Removed updateNavigationButtons()
+}
 
-        function copyNotations() {
-            const notationsText = notationHistory.join(' ');
-            navigator.clipboard.writeText(notationsText).then(() => {
-                const copyButton = document.querySelector('.notation-copy-btn');
-                copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                setTimeout(() => {
-                    copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Moves';
-                }, 2000);
-            });
-        }
+function copyNotations() {
+    const notationsText = notationHistory.join(' ');
+    navigator.clipboard.writeText(notationsText).then(() => {
+        const copyButton = document.querySelector('.notation-copy-btn');
+        copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => {
+            copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Moves';
+        }, 2000);
+    });
+}
 
-        function clearHighlights() {
-            document.querySelectorAll('.square.highlighted').forEach(square => square.classList.remove('highlighted'));
-            document.querySelectorAll('.square.possible-move').forEach(square => square.classList.remove('possible-move'));
-        }
+function clearHighlights() {
+    document.querySelectorAll('.square.highlighted').forEach(square => square.classList.remove('highlighted'));
+    document.querySelectorAll('.square.possible-move').forEach(square => square.classList.remove('possible-move'));
+}
 
-        function clearLastMoveHighlight() {
-            document.querySelectorAll('.square.last-move-start').forEach(square => square.classList.remove('last-move-start'));
-            document.querySelectorAll('.square.last-move-end').forEach(square => square.classList.remove('last-move-end'));
-            lastMoveSquares = [];
-        }
+function clearLastMoveHighlight() {
+    document.querySelectorAll('.square.last-move-start').forEach(square => square.classList.remove('last-move-start'));
+    document.querySelectorAll('.square.last-move-end').forEach(square => square.classList.remove('last-move-end'));
+    lastMoveSquares = [];
+}
 
-        function highlightLastMove(fromCoord, toCoord) {
-            const fromSquare = document.querySelector(`.square[data-coord="${fromCoord}"]`);
-            const toSquare = document.querySelector(`.square[data-coord="${toCoord}"]`);
-            if (fromSquare && toSquare) {
-                fromSquare.classList.add('last-move-start');
-                toSquare.classList.add('last-move-end');
-                lastMoveSquares = [fromSquare, toSquare];
-            }
-        }
+function highlightLastMove(fromCoord, toCoord) {
+    const fromSquare = document.querySelector(`.square[data-coord="${fromCoord}"]`);
+    const toSquare = document.querySelector(`.square[data-coord="${toCoord}"]`);
+    if (fromSquare && toSquare) {
+        fromSquare.classList.add('last-move-start');
+        toSquare.classList.add('last-move-end');
+        lastMoveSquares = [fromSquare, toSquare];
+    }
+}
 
-        loadPositions();
-
+loadPositions();
     </script>
 </body>
 </html>
