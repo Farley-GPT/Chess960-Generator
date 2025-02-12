@@ -687,565 +687,562 @@
 
     <script>
         let positions = {};
-        let isFlipped = false;
-        let history = JSON.parse(localStorage.getItem('chess960-history')) || [];
-        const MAX_HISTORY = 10;
-        let currentPositionElement = document.getElementById('currentPosition');
-        let currentFEN = "";
-        let moveHistory = [];
-        let notationHistory = [];
-        let currentMoveIndex = -1; // Start at initial position
-        let lastMoveSquares = [];
-        let currentPositionNumber = 0; // Store the current position number
-        let moveNumber = 1; // Initialize move number
-        let isWhiteTurn = true; // White starts first
+let isFlipped = false;
+let history = JSON.parse(localStorage.getItem('chess960-history')) || [];
+const MAX_HISTORY = 10;
+let currentPositionElement = document.getElementById('currentPosition');
+let currentFEN = "";
+let moveHistory = [];
+let notationHistory = [];
+let currentMoveIndex = -1; // Start at initial position
+let lastMoveSquares = [];
+let currentPositionNumber = 0; // Store the current position number
+let moveNumber = 1; // Initialize move number
+let isWhiteTurn = true; // White starts first
 
-        // Sound Effects
-        function playSound(soundId) {
-            const sound = document.getElementById(soundId);
-            if (sound) {
-                sound.currentTime = 0; // Rewind to the start to allow rapid playback
-                sound.play();
+// Sound Effects
+function playSound(soundId) {
+    const sound = document.getElementById(soundId);
+    if (sound) {
+        sound.currentTime = 0; // Rewind to the start to allow rapid playback
+        sound.play();
+    }
+}
+
+// Improved position data loading:
+async function loadPositions() {
+    try {
+        const response = await fetch('chess960_positions.txt'); // Load from external file
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const text = await response.text();
+        text.split('|').forEach((pos, i) => positions[i] = pos);
+
+        // Initialize after loading positions
+        createBoard();
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialPosition = urlParams.get('pos') || 0;
+        setPositionByNumber(initialPosition);
+        renderHistory();
+
+    } catch (error) {
+        console.error("Could not load positions:", error);
+        alert("Failed to load Chess960 positions.  Please check your connection and try again, or report the issue.");
+    }
+}
+
+let boardState = {}; // Object to hold piece positions
+
+function createBoard() {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+    const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+    boardState = {}; // Reset board state when creating a new board
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            const colorClass = (row + col) % 2 === 0 ? 'white' : 'black';
+            square.className = `square ${colorClass}`;
+            square.dataset.coord = `${files[col]}${ranks[row]}`;
+            square.addEventListener('dragover', allowDrop);
+            square.addEventListener('dragleave', dragLeave); // Add dragleave event listener
+            square.addEventListener('drop', dropPiece);
+
+            // Add rank labels (numbers)
+            if (col === 0) {
+                const rankLabel = document.createElement('span');
+                rankLabel.className = 'rank-label';
+                rankLabel.textContent = ranks[row];
+                square.appendChild(rankLabel);
+            }
+
+            // Add file labels (letters)
+            if (row === 7) {
+                const fileLabel = document.createElement('span');
+                fileLabel.className = 'file-label';
+                fileLabel.textContent = files[col];
+                square.appendChild(fileLabel);
+            }
+            board.appendChild(square);
+        }
+    }
+    clearHighlights();
+}
+
+function setPiece(row, col, piece, color) {
+    const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+
+    const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+     if (!square) return;
+
+    square.innerHTML = '';
+
+    if (piece) {
+        const img = document.createElement('img');
+        img.src = `pieces/${color}${piece.toUpperCase()}.svg`;
+        img.className = 'piece';
+        img.alt = `${color} ${piece}`;
+        img.draggable = true;
+        img.addEventListener('dragstart', dragStart);
+        if (isFlipped) {
+            img.classList.add('piece-rotated');
+        }
+        square.appendChild(img);
+        boardState[`${files[col]}${ranks[row]}`] = { piece: piece, color: color }; // Update board state
+    } else {
+        delete boardState[`${files[col]}${ranks[row]}`]; // Remove from board state if no piece
+    }
+}
+
+
+function setPositionFromString(positionString) {
+    createBoard();
+    const pieces = positionString.split('');
+
+      for (let col = 0; col < 8; col++) {
+        const piece = positionString[col];
+        setPiece(0, col, piece, 'b');
+        setPiece(7, col, piece, 'w');
+        setPiece(1, col, 'p', 'b');
+        setPiece(6, col, 'p', 'w');
+      }
+
+    for (let row = 2; row < 6; row++) {
+        for (let col = 0; col < 8; col++) {
+            setPiece(row, col, null, null);
+        }
+    }
+    updateFENDisplay();
+    resetMoveHistory(); // Clear move history on new position
+}
+
+function resetBoardToFEN(fen) {
+    createBoard();
+    const fenParts = fen.split(" ");
+    const piecePlacement = fenParts[0];
+    const ranks = piecePlacement.split("/");
+    const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const boardRanks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+
+    for (let r = 0; r < 8; r++) {
+        let fileIndex = 0;
+        for (let char of ranks[r]) {
+            if (isNaN(char)) {
+                const color = (char === char.toUpperCase()) ? 'w' : 'b';
+                const pieceType = char.toLowerCase();
+                setPiece(r, fileIndex, pieceType, color);
+                fileIndex++;
+            } else {
+                fileIndex += parseInt(char);
             }
         }
+    }
+    updateFENDisplay(fen);
+    resetMoveHistory(); // Clear move history when loading from FEN
+    //Removed updateNavigationButtons()
+}
 
-        // Improved position data loading:
-        async function loadPositions() {
-            try {
-                const response = await fetch('chess960_positions.txt'); // Load from external file
-                if (!response.ok) {
-                  throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const text = await response.text();
-                text.split('|').forEach((pos, i) => positions[i] = pos);
 
-                // Initialize after loading positions
-                createBoard();
-                const urlParams = new URLSearchParams(window.location.search);
-                const initialPosition = urlParams.get('pos') || 0;
-                setPositionByNumber(initialPosition);
-                renderHistory();
+function generateRandom() {
+    const position = Math.floor(Math.random() * 960);
+    setPositionByNumber(position);
+}
 
-            } catch (error) {
-                console.error("Could not load positions:", error);
-                alert("Failed to load Chess960 positions.  Please check your connection and try again, or report the issue.");
-            }
+function setPosition() {
+    const input = document.getElementById('positionInput');
+    const position = parseInt(input.value, 10);
+
+    if (position >= 0 && position <= 959) {
+        setPositionByNumber(position);
+    } else {
+        alert('Invalid position number.  Please enter a number between 0 and 959.');
+    }
+}
+
+function previousPosition() {
+    let newPosition = currentPositionNumber - 1;
+    if (newPosition < 0) {
+        newPosition = 959; // Wrap around
+    }
+    setPositionByNumber(newPosition);
+}
+
+function nextPosition() {
+    let newPosition = currentPositionNumber + 1;
+    if (newPosition > 959) {
+        newPosition = 0; // Wrap around
+    }
+    setPositionByNumber(newPosition);
+}
+
+
+function setPositionByNumber(position) {
+    showLoader(true);
+    currentPositionElement.classList.remove('show');
+    setTimeout(() => {
+        currentPositionElement.textContent = `Position: ${position}`;
+        currentPositionElement.classList.add('show');
+    }, 300);
+
+    document.getElementById('positionInput').value = position;
+    currentPositionNumber = position; // Store the current position number
+
+    setTimeout(() => {
+        if (positions[position] === undefined) {
+            alert("Sorry, could not set position");
+            showLoader(false);
+            return;
         }
+        setPositionFromString(positions[position]);
+        addToHistory(position);
+        showLoader(false);
+    }, 500);
+}
 
-        let boardState = {}; // Object to hold piece positions
+function resetBoard() {
+    setPositionByNumber(currentPositionNumber); // Reset to the current position number
+}
 
-        function createBoard() {
-            const board = document.getElementById('board');
-            board.innerHTML = '';
-            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
-            boardState = {}; // Reset board state when creating a new board
+function addToHistory(position) {
+    const positionString = String(position);
+    history = history.filter(p => p !== positionString);
+    history.unshift(positionString);
+    history = history.slice(0, MAX_HISTORY);
+    localStorage.setItem('chess960-history', JSON.stringify(history));
+    renderHistory();
+}
 
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const square = document.createElement('div');
-                    const colorClass = (row + col) % 2 === 0 ? 'white' : 'black';
-                    square.className = `square ${colorClass}`;
-                    square.dataset.coord = `${files[col]}${ranks[row]}`;
-                    square.addEventListener('dragover', allowDrop);
-                    square.addEventListener('dragleave', dragLeave); // Add dragleave event listener
-                    square.addEventListener('drop', dropPiece);
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    list.innerHTML = history.map(pos => {
+        const positionString = positions[pos] || 'Loading...';
+        return `<div class="history-item" onclick="setPositionByNumber(${pos}); playSound('clickSound')">
+    ${pos}: ${positionString}
+</div>`;
+    }).join('');
+}
 
-                    // Add rank labels (numbers)
-                    if (col === 0) {
-                        const rankLabel = document.createElement('span');
-                        rankLabel.className = 'rank-label';
-                        rankLabel.textContent = ranks[row];
-                        square.appendChild(rankLabel);
-                    }
+function generateFEN() {
+    let fen = "";
+    const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+    const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
-                    // Add file labels (letters)
-                    if (row === 7) {
-                        const fileLabel = document.createElement('span');
-                        fileLabel.className = 'file-label';
-                        fileLabel.textContent = files[col];
-                        square.appendChild(fileLabel);
-                    }
-                    board.appendChild(square);
-                }
-            }
-            clearHighlights();
-        }
-
-        function setPiece(row, col, piece, color) {
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-
+    for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
             const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
-             if (!square) return;
-
-            square.innerHTML = '';
-
-            if (piece) {
-                const img = document.createElement('img');
-                img.src = `pieces/${color}${piece.toUpperCase()}.svg`;
-                img.className = 'piece';
-                img.alt = `${color} ${piece}`;
-                img.draggable = true;
-                img.addEventListener('dragstart', dragStart);
-                if (isFlipped) {
-                    img.classList.add('piece-rotated');
-                }
-                square.appendChild(img);
-                boardState[`${files[col]}${ranks[row]}`] = { piece: piece, color: color }; // Update board state
-            } else {
-                delete boardState[`${files[col]}${ranks[row]}`]; // Remove from board state if no piece
-            }
-        }
-
-
-        function setPositionFromString(positionString) {
-            createBoard();
-            const pieces = positionString.split('');
-
-              for (let col = 0; col < 8; col++) {
-                const piece = positionString[col];
-                setPiece(0, col, piece, 'b');
-                setPiece(7, col, piece, 'w');
-                setPiece(1, col, 'p', 'b');
-                setPiece(6, col, 'p', 'w');
-              }
-
-            for (let row = 2; row < 6; row++) {
-                for (let col = 0; col < 8; col++) {
-                    setPiece(row, col, null, null);
-                }
-            }
-            updateFENDisplay();
-            resetMoveHistory(); // Clear move history on new position
-        }
-
-        function resetBoardToFEN(fen) {
-            createBoard();
-            const fenParts = fen.split(" ");
-            const piecePlacement = fenParts[0];
-            const ranks = piecePlacement.split("/");
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-            const boardRanks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-
-            for (let r = 0; r < 8; r++) {
-                let fileIndex = 0;
-                for (let char of ranks[r]) {
-                    if (isNaN(char)) {
-                        const color = (char === char.toUpperCase()) ? 'w' : 'b';
-                        const pieceType = char.toLowerCase();
-                        setPiece(r, fileIndex, pieceType, color);
-                        fileIndex++;
-                    } else {
-                        fileIndex += parseInt(char);
-                    }
-                }
-            }
-            updateFENDisplay(fen);
-            resetMoveHistory(); // Clear move history when loading from FEN
-            //Removed updateNavigationButtons()
-        }
-
-
-        function generateRandom() {
-            const position = Math.floor(Math.random() * 960);
-            setPositionByNumber(position);
-        }
-
-        function setPosition() {
-            const input = document.getElementById('positionInput');
-            const position = parseInt(input.value, 10);
-
-            if (position >= 0 && position <= 959) {
-                setPositionByNumber(position);
-            } else {
-                alert('Invalid position number.  Please enter a number between 0 and 959.');
-            }
-        }
-
-        function previousPosition() {
-            let newPosition = currentPositionNumber - 1;
-            if (newPosition < 0) {
-                newPosition = 959; // Wrap around
-            }
-            setPositionByNumber(newPosition);
-        }
-
-        function nextPosition() {
-            let newPosition = currentPositionNumber + 1;
-            if (newPosition > 959) {
-                newPosition = 0; // Wrap around
-            }
-            setPositionByNumber(newPosition);
-        }
-
-
-        function setPositionByNumber(position) {
-            showLoader(true);
-            currentPositionElement.classList.remove('show');
-            setTimeout(() => {
-                currentPositionElement.textContent = `Position: ${position}`;
-                currentPositionElement.classList.add('show');
-            }, 300);
-
-            document.getElementById('positionInput').value = position;
-            currentPositionNumber = position; // Store the current position number
-
-            setTimeout(() => {
-                if (positions[position] === undefined) {
-                    alert("Sorry, could not set position");
-                    showLoader(false);
-                    return;
-                }
-                setPositionFromString(positions[position]);
-                addToHistory(position);
-                showLoader(false);
-            }, 500);
-        }
-
-        function resetBoard() {
-            setPositionByNumber(currentPositionNumber); // Reset to the current position number
-        }
-
-
-        function addToHistory(position) {
-            const positionString = String(position);
-            history = history.filter(p => p !== positionString);
-            history.unshift(positionString);
-            history = history.slice(0, MAX_HISTORY);
-            localStorage.setItem('chess960-history', JSON.stringify(history));
-            renderHistory();
-        }
-
-        function renderHistory() {
-            const list = document.getElementById('historyList');
-            list.innerHTML = history.map(pos => {
-                const positionString = positions[pos] || 'Loading...';
-                return `<div class="history-item" onclick="setPositionByNumber(${pos}); playSound('clickSound')">
-            ${pos}: ${positionString}
-        </div>`;
-            }).join('');
-        }
-
-        function generateFEN() {
-            let fen = "";
-            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-
-            for (let row = 0; row < 8; row++) {
-                let emptyCount = 0;
-                for (let col = 0; col < 8; col++) {
-                    const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
-                    if (square.firstChild) {
-                        if (emptyCount > 0) {
-                            fen += emptyCount;
-                            emptyCount = 0;
-                        }
-                        const piece = square.firstChild.alt;
-                        const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
-                        fen += pieceChar;
-                    } else {
-                        emptyCount++;
-                    }
-                }
+            if (square.firstChild) {
                 if (emptyCount > 0) {
                     fen += emptyCount;
+                    emptyCount = 0;
                 }
-                if (row < 7) {
-                    fen += "/";
-                }
-            }
-            fen += " w KQkq - 0 1";
-            return fen;
-        }
-
-        function updateFENDisplay(fen = null) {
-            currentFEN = fen || generateFEN();
-            document.getElementById('fenOutput').value = currentFEN;
-        }
-
-        function copyFEN() {
-            const fenOutput = document.getElementById('fenOutput');
-            navigator.clipboard.writeText(fenOutput.value).then(() => {
-                const copyButton = document.querySelector('.fen-section button');
-                copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                setTimeout(() => {
-                    copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy FEN';
-                }, 2000);
-            });
-        }
-
-        function toggleBoardFlip() {
-            isFlipped = !isFlipped;
-            const board = document.getElementById('board');
-            board.classList.toggle('rotated', isFlipped);
-            const pieces = document.querySelectorAll('.piece');
-            pieces.forEach(piece => {
-                piece.classList.toggle('piece-rotated', isFlipped);
-            });
-            createBoard();
-            resetBoardToFEN(currentFEN); // Re-render board with current FEN after flip
-        }
-
-        function openLichessEditor() {
-            const fen = generateFEN();
-            const fenParts = fen.split(" ");
-            const formattedFen = fenParts.join("_");
-            const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
-            window.open(lichessUrl, '_blank');
-        }
-
-        // NEW FUNCTION for Lichess Analysis
-        function openLichessAnalysis() {
-            const fen = generateFEN();
-            const fenParts = fen.split(" ");
-            const formattedFen = fenParts.join("_");
-            const lichessUrl = `https://lichess.org/analysis/${formattedFen}?color=white`;  // Changed 'editor' to 'analysis'
-            window.open(lichessUrl, '_blank');
-        }
-
-        function showHelp() {
-            const modal = document.getElementById('helpModal');
-            modal.classList.add('show');
-        }
-
-        function hideHelp() {
-            const modal = document.getElementById('helpModal');
-            modal.classList.remove('show');
-        }
-
-        function showLoader(show) {
-            const loader = document.getElementById('loader');
-            if (show) {
-                loader.classList.add('show');
+                const piece = square.firstChild.alt;
+                const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
+                fen += pieceChar;
             } else {
-                void loader.offsetWidth;
-                loader.classList.remove('show');
+                emptyCount++;
             }
         }
-
-        let draggedPiece = null;
-        let startSquare = null;
-
-        function dragStart(event) {
-            draggedPiece = event.target;
-            startSquare = event.target.parentNode;
-            setTimeout(() => {
-                draggedPiece.classList.add('hidden');
-            }, 0);
+        if (emptyCount > 0) {
+            fen += emptyCount;
         }
-
-        function allowDrop(event) {
-            event.preventDefault();
-            const targetSquare = event.target.closest('.square');
-            if (targetSquare) {
-                targetSquare.classList.add('drag-over');
-            }
+        if (row < 7) {
+            fen += "/";
         }
+    }
+    fen += " w KQkq - 0 1";
+    return fen;
+}
 
-        function dragLeave(event) {
-            event.preventDefault();
-            const targetSquare = event.target.closest('.square');
-            if (targetSquare) {
-                targetSquare.classList.remove('drag-over');
-            }
-        }
+function updateFENDisplay(fen = null) {
+    currentFEN = fen || generateFEN();
+    document.getElementById('fenOutput').value = currentFEN;
+}
 
-        function dropPiece(event) {
-            event.preventDefault();
-            if (!draggedPiece) return;
+function copyFEN() {
+    const fenOutput = document.getElementById('fenOutput');
+    navigator.clipboard.writeText(fenOutput.value).then(() => {
+        const copyButton = document.querySelector('.fen-section button');
+        copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => {
+            copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy FEN';
+        }, 2000);
+    });
+}
 
-            const targetSquare = event.target.closest('.square');
-            //Remove the drag-over class:
-            targetSquare.classList.remove('drag-over');
+function toggleBoardFlip() {
+    isFlipped = !isFlipped;
+    const board = document.getElementById('board');
+    board.classList.toggle('rotated', isFlipped);
+    const pieces = document.querySelectorAll('.piece');
+    pieces.forEach(piece => {
+        piece.classList.toggle('piece-rotated', isFlipped);
+    });
+    createBoard();
+    resetBoardToFEN(currentFEN); // Re-render board with current FEN after flip
+}
 
-            if (!targetSquare || targetSquare === startSquare) {
-                draggedPiece.classList.remove('hidden');
-                draggedPiece = null;
-                startSquare = null;
-                return;
-            }
+function openLichessEditor() {
+    const fen = generateFEN();
+    const fenParts = fen.split(" ");
+    const formattedFen = fenParts.join("_");
+    const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
+    window.open(lichessUrl, '_blank');
+}
+
+// NEW FUNCTION for Lichess Analysis
+function openLichessAnalysis() {
+    const fen = generateFEN();
+    const fenParts = fen.split(" ");
+    const formattedFen = fenParts.join("_");
+    const lichessUrl = `https://lichess.org/analysis/${formattedFen}?color=white`;  // Changed 'editor' to 'analysis'
+    window.open(lichessUrl, '_blank');
+}
+
+function showHelp() {
+    const modal = document.getElementById('helpModal');
+    modal.classList.add('show');
+}
+
+function hideHelp() {
+    const modal = document.getElementById('helpModal');
+    modal.classList.remove('show');
+}
+
+function showLoader(show) {
+    const loader = document.getElementById('loader');
+    if (show) {
+        loader.classList.add('show');
+    } else {
+        void loader.offsetWidth;
+        loader.classList.remove('show');
+    }
+}
+
+let draggedPiece = null;
+let startSquare = null;
+
+function dragStart(event) {
+    draggedPiece = event.target;
+    startSquare = event.target.parentNode;
+    setTimeout(() => {
+        draggedPiece.classList.add('hidden');
+    }, 0);
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+    const targetSquare = event.target.closest('.square');
+    if (targetSquare) {
+        targetSquare.classList.add('drag-over');
+    }
+}
+
+function dragLeave(event) {
+    event.preventDefault();
+    const targetSquare = event.target.closest('.square');
+    if (targetSquare) {
+        targetSquare.classList.remove('drag-over');
+    }
+}
+
+function dropPiece(event) {
+    event.preventDefault();
+    if (!draggedPiece) return;
+
+    const targetSquare = event.target.closest('.square');
+    //Remove the drag-over class:
+    targetSquare.classList.remove('drag-over');
+
+    if (!targetSquare || targetSquare === startSquare) {
+        draggedPiece.classList.remove('hidden');
+        draggedPiece = null;
+        startSquare = null;
+        return;
+    }
 
 
-            // Basic move validation (can move to any empty square or capture)
-            if (targetSquare.firstChild) {
-                if (targetSquare.firstChild.alt.startsWith(draggedPiece.alt.split(' ')[0])) { // Check if target has same color piece
-                    draggedPiece.classList.remove('hidden');
-                    draggedPiece = null;
-                    startSquare = null;
-                    return; // Cannot capture own piece
-                }
-            }
-
-            // Perform move
-            movePiece(startSquare, targetSquare);
-            playSound('moveSound');
-            draggedPiece.classList.remove('hidden'); // Make the piece visible again
+    // Basic move validation (can move to any empty square or capture)
+    if (targetSquare.firstChild) {
+        if (targetSquare.firstChild.alt.startsWith(draggedPiece.alt.split(' ')[0])) { // Check if target has same color piece
+            draggedPiece.classList.remove('hidden');
             draggedPiece = null;
             startSquare = null;
+            return; // Cannot capture own piece
         }
+    }
 
-        function movePiece(fromSquare, toSquare) {
-            const piece = fromSquare.firstChild;
-            const pieceName = piece.alt.split(' ')[1];
-            const pieceColor = piece.alt.split(' ')[0];
-            const fromCoord = fromSquare.dataset.coord;
-            const toCoord = toSquare.dataset.coord;
+    // Perform move
+    movePiece(startSquare, targetSquare);
+    playSound('moveSound');
+    draggedPiece.classList.remove('hidden'); // Make the piece visible again
+    draggedPiece = null;
+    startSquare = null;
+}
 
-            // Capture logic: remove piece from target square if it exists
-            if (toSquare.firstChild) {
-                toSquare.innerHTML = ''; // Remove the piece in the target square (capture)
-            }
+function movePiece(fromSquare, toSquare) {
+    const piece = fromSquare.firstChild;
+    const pieceName = piece.alt.split(' ')[1];
+    const pieceColor = piece.alt.split(' ')[0];
+    const fromCoord = fromSquare.dataset.coord;
+    const toCoord = toSquare.dataset.coord;
 
-            // Update board state
-            boardState[toCoord] = boardState[fromCoord];
-            delete boardState[fromCoord];
+    // **CAPTURE DETECTION (BEFORE the move)**
+    const isCapture = !!toSquare.firstChild; // true if there's a piece on toSquare, false otherwise
 
-            // Move piece visually
-            toSquare.appendChild(piece);
+    // Capture logic: remove piece from target square if it exists
+    if (isCapture) {
+        toSquare.innerHTML = ''; // Remove the piece in the target square (capture)
+    }
 
-            // Update FEN and move history
-            updateFENDisplay();
-            recordMove(fromCoord, toCoord, pieceName, pieceColor);
-            clearLastMoveHighlight();
-            highlightLastMove(fromCoord, toCoord);
+    // Update board state
+    boardState[toCoord] = boardState[fromCoord];
+    delete boardState[fromCoord];
+
+    // Move piece visually
+    toSquare.appendChild(piece);
+
+    // Update FEN and move history
+    updateFENDisplay();
+    recordMove(fromCoord, toCoord, pieceName, pieceColor, isCapture); // Pass isCapture
+    clearLastMoveHighlight();
+    highlightLastMove(fromCoord, toCoord);
+}
+
+
+
+function recordMove(fromCoord, toCoord, pieceName, pieceColor, isCapture) {
+    let notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, isCapture);
+    let formattedNotation = isWhiteTurn ? `${moveNumber}. ${notation}` : notation;
+
+    moveHistory.push({ from: fromCoord, to: toCoord, notation: formattedNotation, fen: currentFEN });
+    notationHistory.push(formattedNotation);
+
+    if (!isWhiteTurn) {
+        moveNumber++; // Increment after Black's move
+    }
+    currentMoveIndex++;
+    isWhiteTurn = !isWhiteTurn; // Switch turns
+
+    renderNotationHistory();
+}
+
+function convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, isCapture) {
+    let notation = '';
+
+    if (pieceName === 'p') { // Pawn moves
+        if (isCapture) {
+            notation = fromCoord[0] + 'x' + toCoord; // Pawn capture: file of origin + x + destination
+        } else {
+            notation = toCoord; // Pawn move: just the destination square
         }
+    } else { // Non-pawn moves
+        const pieceInitial = pieceName.toUpperCase()[0]; //R, N, B, Q, K
+        notation = pieceInitial + (isCapture ? 'x' : '') + toCoord; // Piece initial + destination, add 'x' if capture
+    }
+    return notation;
+}
 
-        function recordMove(fromCoord, toCoord, pieceName, pieceColor) {
-            let notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, toCoord); // Pass toCoord for capture notation
-            let formattedNotation;
+function renderNotationHistory() {
+    const notationList = document.getElementById('notationList');
+    let notationHTML = ''; // Build the HTML string
 
-            if (isWhiteTurn) {
-                formattedNotation = `${moveNumber}. ${notation}`;
-            } else {
-                formattedNotation = `${notation}`;
-                moveNumber++; // Increment move number after black's move
-            }
-
-            moveHistory.push({ from: fromCoord, to: toCoord, notation: formattedNotation, fen: currentFEN });
-            notationHistory.push(formattedNotation);
-            currentMoveIndex++;
-            renderNotationHistory();
-            isWhiteTurn = !isWhiteTurn; // Switch turns
-            //Removed updateNavigationButtons()
+    for (let i = 0; i < notationHistory.length; i++) {
+        if (i % 2 === 0) { // White's move
+            notationHTML += `<div class="notation-item-row">`;
+            notationHTML += `<div class="notation-item move-number">${Math.floor(i / 2) + 1}.</div>`;
+            notationHTML += `<div class="notation-item white-move" onclick="gotoMove(${i}); playSound('clickSound')">${notationHistory[i]}</div>`;
+        } else { // Black's move
+            notationHTML += `<div class="notation-item black-move" onclick="gotoMove(${i}); playSound('clickSound')">${notationHistory[i]}</div>`;
+            notationHTML += `</div>`; // Close the row
         }
+    }
+     //  if last move was made by white
+    if(notationHistory.length % 2 !== 0){
+        notationHTML += `</div>`; //close row
+    }
 
-        function convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, targetSquareCoord) {
-            let notation = '';
-            const pieceInitial = pieceName[0].toUpperCase(); // Piece type initial (for non-pawns)
-
-            const isCapture = document.querySelector(`.square[data-coord="${targetSquareCoord}"]`).firstChild !== null;
-            let captureSymbol = '';
-
-            if (isCapture) {
-                captureSymbol = 'x';
-            }
-
-            if (pieceName === 'p') { // Pawn moves
-                if (isCapture) {
-                    notation = fromCoord[0] + captureSymbol + toCoord; // Pawn capture: file of origin + x + destination
-                } else {
-                    notation = toCoord; // Pawn move: just destination square
-                }
-            } else { // Non-pawn moves
-                notation = pieceInitial + (isCapture ? captureSymbol : '') + toCoord; // Piece initial + (x if capture) + destination
-            }
-
-            return notation;
-        }
+    notationList.innerHTML = notationHTML; // Set the content *once*
+}
 
 
-        function renderNotationHistory() {
-            const notationList = document.getElementById('notationList');
-            notationList.innerHTML = ''; // Clear previous notations
-            let notationRow;
+function gotoMove(index) {
+    if (index < -1 || index >= moveHistory.length) return; // Allow index -1 to go to initial position
 
-            notationHistory.forEach((notation, index) => {
-                if (index % 2 === 0) { // White's move, start a new row
-                    notationRow = document.createElement('div');
-                    notationRow.classList.add('notation-item-row'); // Optional: for styling in rows if needed
-                    notationRow.innerHTML += `<div class="notation-item move-number">${Math.floor(index / 2) + 1}.</div>`; // Move number
-                    notationRow.innerHTML += `<div class="notation-item white-move" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
-                    notationList.appendChild(notationRow);
-                } else { // Black's move, append to the current row
-                    if (notationRow) {
-                        notationRow.innerHTML += `<div class="notation-item black-move" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
-                    }
-                }
-            });
-        }
+    currentMoveIndex = index;
+    if (index === -1) {
+        setPositionByNumber(currentPositionNumber); // Reset to initial position
+        moveNumber = 1; // Reset move number
+        isWhiteTurn = true; // Reset to white's turn
+    } else {
+        const fenToLoad = moveHistory[index].fen;
+        resetBoardToFEN(fenToLoad);
+        moveNumber = Math.floor(index / 2) + 1 + (index % 2 === 0 ? 0 : 1) ; // Correctly set move number based on index
+        isWhiteTurn = (index % 2 !== 0); // Correctly set turn based on index
+    }
 
+    // Re-render notations to reflect current move index (optional visual cue)
+    renderNotationHistory();
+    //Removed updateNavigationButtons();
+    clearLastMoveHighlight();
+    if (index >= 0) {
+        const move = moveHistory[index];
+        highlightLastMove(move.from, move.to);
+    }
+}
 
-        function gotoMove(index) {
-            if (index < -1 || index >= moveHistory.length) return; // Allow index -1 to go to initial position
+function resetMoveHistory() {
+    moveHistory = [];
+    notationHistory = [];
+    currentMoveIndex = -1;
+    moveNumber = 1; // Reset move number
+    isWhiteTurn = true; // Reset to white's turn
+    renderNotationHistory();
+    clearLastMoveHighlight();
+    //Removed updateNavigationButtons()
+}
 
-            currentMoveIndex = index;
-            if (index === -1) {
-                setPositionByNumber(currentPositionNumber); // Reset to initial position
-                moveNumber = 1; // Reset move number
-                isWhiteTurn = true; // Reset to white's turn
-            } else {
-                const fenToLoad = moveHistory[index].fen;
-                resetBoardToFEN(fenToLoad);
-                moveNumber = Math.floor(index / 2) + 1 + (index % 2 === 0 ? 0 : 1) ; // Correctly set move number based on index
-                isWhiteTurn = (index % 2 !== 0); // Correctly set turn based on index
-            }
+function copyNotations() {
+    // Correctly join the notationHistory array, which already contains the formatted moves.
+    const notationsText = notationHistory.join('  '); // Use two spaces for separation
 
-            // Re-render notations to reflect current move index (optional visual cue)
-            renderNotationHistory();
-            //Removed updateNavigationButtons();
-            clearLastMoveHighlight();
-            if (index >= 0) {
-                const move = moveHistory[index];
-                highlightLastMove(move.from, move.to);
-            }
-        }
+    navigator.clipboard.writeText(notationsText).then(() => {
+      const copyButton = document.querySelector('.notation-copy-btn');
+      copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      setTimeout(() => {
+        copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Moves';
+      }, 2000);
+    });
+  }
 
-        function resetMoveHistory() {
-            moveHistory = [];
-            notationHistory = [];
-            currentMoveIndex = -1;
-            moveNumber = 1; // Reset move number
-            isWhiteTurn = true; // Reset to white's turn
-            renderNotationHistory();
-            clearLastMoveHighlight();
-            //Removed updateNavigationButtons()
-        }
+function clearHighlights() {
+    document.querySelectorAll('.square.highlighted').forEach(square => square.classList.remove('highlighted'));
+    document.querySelectorAll('.square.possible-move').forEach(square => square.classList.remove('possible-move'));
+}
 
-        function copyNotations() {
-            const notationsText = notationHistory.join(' ');
-            navigator.clipboard.writeText(notationsText).then(() => {
-                const copyButton = document.querySelector('.notation-copy-btn');
-                copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                setTimeout(() => {
-                    copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Moves';
-                }, 2000);
-            });
-        }
+function clearLastMoveHighlight() {
+    document.querySelectorAll('.square.last-move-start').forEach(square => square.classList.remove('last-move-start'));
+    document.querySelectorAll('.square.last-move-end').forEach(square => square.classList.remove('last-move-end'));
+    lastMoveSquares = [];
+}
 
-        function clearHighlights() {
-            document.querySelectorAll('.square.highlighted').forEach(square => square.classList.remove('highlighted'));
-            document.querySelectorAll('.square.possible-move').forEach(square => square.classList.remove('possible-move'));
-        }
+function highlightLastMove(fromCoord, toCoord) {
+    const fromSquare = document.querySelector(`.square[data-coord="${fromCoord}"]`);
+    const toSquare = document.querySelector(`.square[data-coord="${toCoord}"]`);
+    if (fromSquare && toSquare) {
+        fromSquare.classList.add('last-move-start');
+        toSquare.classList.add('last-move-end');
+        lastMoveSquares = [fromSquare, toSquare];
+    }
+}
 
-        function clearLastMoveHighlight() {
-            document.querySelectorAll('.square.last-move-start').forEach(square => square.classList.remove('last-move-start'));
-            document.querySelectorAll('.square.last-move-end').forEach(square => square.classList.remove('last-move-end'));
-            lastMoveSquares = [];
-        }
-
-        function highlightLastMove(fromCoord, toCoord) {
-            const fromSquare = document.querySelector(`.square[data-coord="${fromCoord}"]`);
-            const toSquare = document.querySelector(`.square[data-coord="${toCoord}"]`);
-            if (fromSquare && toSquare) {
-                fromSquare.classList.add('last-move-start');
-                toSquare.classList.add('last-move-end');
-                lastMoveSquares = [fromSquare, toSquare];
-            }
-        }
-
-        loadPositions();
+loadPositions();
     </script>
 </body>
 </html>
