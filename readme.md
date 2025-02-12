@@ -1,10 +1,9 @@
-# 🌟 Chess960 Generator brought to you by <a href="https://x.com/TheRealFarley" target="_blank">Brandon Farley</a>
+### 🌟 Chess960 Generator brought to you by <a href="https://x.com/TheRealFarley" target="_blank">Brandon Farley</a>
 
 ##### Visit on GitHub Page: https://farley-gpt.github.io/Chess960-Generator/
 
-
-## Chess960 Rules
-Chess960 (Fischer Random Chess) features randomized starting positions with these rules:
+---
+#### Chess960 (Fischer Random Chess) features randomized starting positions with these rules:
 
 - Bishops on opposite-colored squares.
 - King between rooks.
@@ -12,7 +11,7 @@ Chess960 (Fischer Random Chess) features randomized starting positions with thes
 - Standard chess rules apply after the initial setup.
 
 
-## How to use:
+#### How to use:
 
 - Click "Random" to get a random position.
 - Enter a number (0-959) and click "Load" for a specific position.
