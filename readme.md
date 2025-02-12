@@ -1,4 +1,6 @@
-Chess960 Rules
+🌟 Chess960 Generator brought to you by Brandon Farley
+
+## Chess960 Rules
 Chess960 (Fischer Random Chess) features randomized starting positions with these rules:
 
 Bishops on opposite-colored squares.
@@ -9,5 +11,6 @@ How to use:
 
 Click "Random" to get a random position.
 Enter a number (0-959) and click "Load" for a specific position.
-Use the "Copy" button to copy the FEN.
+Use the "Copy FEN" button to copy the FEN.
 Click the "Lichess Board Editor" button to open the position in Lichess.
+Drag and drop pieces to make moves.
