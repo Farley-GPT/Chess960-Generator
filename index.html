@@ -572,6 +572,42 @@
             justify-content: center; /* Center horizontally */
             margin-top: 20px;
         }
+        /* ... your existing CSS ... */
+
+.notation-item-row {
+    display: flex; /* Arrange items in a row */
+    align-items: baseline; /* Align items to the baseline of text */
+    margin-bottom: 5px; /* Space between rows */
+}
+
+.notation-item.move-number {
+    width: 25px; /* Fixed width for move numbers */
+    text-align: right; /* Right-align move numbers */
+    margin-right: 5px; /* Space after move number */
+    color: var(--dark-color); /* Style for move numbers */
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.notation-item.white-move, .notation-item.black-move {
+    padding: 6px 12px;
+    border-radius: 5px;
+    background-color: rgba(52, 152, 219, 0.2);
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    user-select: none;
+    font-size: 0.9em;
+    color: var(--primary-color);
+    transform: scale(1);
+    margin-right: 5px; /* Space between moves in a row */
+    cursor: pointer;
+}
+
+.notation-item.white-move:hover, .notation-item.black-move:hover {
+    background-color: var(--secondary-color);
+    color: white;
+    transform: scale(1.05);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
     </style>
 </head>
 <body>
@@ -661,6 +697,8 @@
         let currentMoveIndex = -1; // Start at initial position
         let lastMoveSquares = [];
         let currentPositionNumber = 0; // Store the current position number
+        let moveNumber = 1; // Initialize move number
+        let isWhiteTurn = true; // White starts first
 
         // Sound Effects
         function playSound(soundId) {
@@ -1075,40 +1113,69 @@
         }
 
         function recordMove(fromCoord, toCoord, pieceName, pieceColor) {
-            const notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, toCoord); // Pass toCoord for capture notation
-            moveHistory.push({ from: fromCoord, to: toCoord, notation: notation, fen: currentFEN });
-            notationHistory.push(notation);
+            let notation = convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, toCoord); // Pass toCoord for capture notation
+            let formattedNotation;
+
+            if (isWhiteTurn) {
+                formattedNotation = `${moveNumber}. ${notation}`;
+            } else {
+                formattedNotation = `${notation}`;
+                moveNumber++; // Increment move number after black's move
+            }
+
+            moveHistory.push({ from: fromCoord, to: toCoord, notation: formattedNotation, fen: currentFEN });
+            notationHistory.push(formattedNotation);
             currentMoveIndex++;
             renderNotationHistory();
+            isWhiteTurn = !isWhiteTurn; // Switch turns
             //Removed updateNavigationButtons()
         }
 
         function convertToAlgebraicNotation(fromCoord, toCoord, pieceName, pieceColor, targetSquareCoord) {
-            // Basic algebraic notation (no disambiguation, checks, mates, promotions for now)
-            let notation = pieceName[0].toUpperCase(); // Piece type (Pawn omitted)
-            if (pieceName === 'p') notation = ""; // Pawn notation is just the square
+            let notation = '';
+            const pieceInitial = pieceName[0].toUpperCase(); // Piece type initial (for non-pawns)
 
             const isCapture = document.querySelector(`.square[data-coord="${targetSquareCoord}"]`).firstChild !== null;
             let captureSymbol = '';
-            if (isCapture && pieceName === 'p') {
-                captureSymbol = fromCoord[0] + 'x'; // Pawn capture notation
-            } else if (isCapture) {
-                captureSymbol = 'x'; // Piece capture notation
-            } else {
-                captureSymbol = ''; // No capture
+
+            if (isCapture) {
+                captureSymbol = 'x';
             }
 
-            return notation + captureSymbol + toCoord; // Correct notation format
+            if (pieceName === 'p') { // Pawn moves
+                if (isCapture) {
+                    notation = fromCoord[0] + captureSymbol + toCoord; // Pawn capture: file of origin + x + destination
+                } else {
+                    notation = toCoord; // Pawn move: just destination square
+                }
+            } else { // Non-pawn moves
+                notation = pieceInitial + (isCapture ? captureSymbol : '') + toCoord; // Piece initial + (x if capture) + destination
+            }
+
+            return notation;
         }
 
 
         function renderNotationHistory() {
             const notationList = document.getElementById('notationList');
-            notationList.innerHTML = notationHistory.map((notation, index) => {
-                const isCurrentMove = index === currentMoveIndex;
-                return `<div class="notation-item ${isCurrentMove ? 'current-move' : ''}" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
-            }).join('');
+            notationList.innerHTML = ''; // Clear previous notations
+            let notationRow;
+
+            notationHistory.forEach((notation, index) => {
+                if (index % 2 === 0) { // White's move, start a new row
+                    notationRow = document.createElement('div');
+                    notationRow.classList.add('notation-item-row'); // Optional: for styling in rows if needed
+                    notationRow.innerHTML += `<div class="notation-item move-number">${Math.floor(index / 2) + 1}.</div>`; // Move number
+                    notationRow.innerHTML += `<div class="notation-item white-move" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
+                    notationList.appendChild(notationRow);
+                } else { // Black's move, append to the current row
+                    if (notationRow) {
+                        notationRow.innerHTML += `<div class="notation-item black-move" onclick="gotoMove(${index}); playSound('clickSound')">${notation}</div>`;
+                    }
+                }
+            });
         }
+
 
         function gotoMove(index) {
             if (index < -1 || index >= moveHistory.length) return; // Allow index -1 to go to initial position
@@ -1116,9 +1183,13 @@
             currentMoveIndex = index;
             if (index === -1) {
                 setPositionByNumber(currentPositionNumber); // Reset to initial position
+                moveNumber = 1; // Reset move number
+                isWhiteTurn = true; // Reset to white's turn
             } else {
                 const fenToLoad = moveHistory[index].fen;
                 resetBoardToFEN(fenToLoad);
+                moveNumber = Math.floor(index / 2) + 1 + (index % 2 === 0 ? 0 : 1) ; // Correctly set move number based on index
+                isWhiteTurn = (index % 2 !== 0); // Correctly set turn based on index
             }
 
             // Re-render notations to reflect current move index (optional visual cue)
@@ -1135,6 +1206,8 @@
             moveHistory = [];
             notationHistory = [];
             currentMoveIndex = -1;
+            moveNumber = 1; // Reset move number
+            isWhiteTurn = true; // Reset to white's turn
             renderNotationHistory();
             clearLastMoveHighlight();
             //Removed updateNavigationButtons()
