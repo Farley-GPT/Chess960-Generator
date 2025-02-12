@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess960 Position Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --light-color: #f8f9fa;
+            --dark-color: #34495e;  /* Darker slate blue */
+            --light-square-color: #f0d9b5; /* Lighter wood */
+            --dark-square-color: #b58863;  /* Darker wood */
+            --accent-color: #e74c3c; /* Red accent */
+            --border-color: #ddd;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif; /* Modern font */
+            margin: 0; /* Remove default margins */
+            padding: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); /* Subtle gradient */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--primary-color);
+        }
+
+        .container {
+            background-color: white;
+            padding: 30px 40px; /* More padding */
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            position: relative;
+            width: 90%; /* Wider container */
+            max-width: 800px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 2.5em;
+            font-weight: 500; /* Slightly bolder */
+            color: var(--primary-color);
+        }
+        h1 .help-icon {
+            font-size: 0.6em; /* Smaller help icon */
+            vertical-align: top;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0; /* No gaps */
+            border: 2px solid var(--border-color); /* Solid border */
+            border-radius: 5px;
+            margin: 20px auto;
+            max-width: 600px;
+            transition: transform 0.3s ease-in-out; /* Smoother transition */
+        }
+
+        .square {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.75em;
+            color: rgba(0,0,0,0.5);
+            position: relative; /* For absolute positioning */
+        }
+
+        .white { background-color: var(--light-square-color); }
+        .black { background-color: var(--dark-square-color); }
+
+        .piece {
+            width: 85%;
+            height: 85%;
+            transition: transform 0.2s ease-in-out; /* Smoother transition */
+            pointer-events: none;
+        }
+        .piece-rotated {
+            transform: rotate(180deg);
+        }
+
+        .rank-label, .file-label { /* Shared styles */
+            position: absolute;
+            font-size: 0.7em;
+            color: rgba(0,0,0,0.4);
+            user-select: none;
+        }
+        .rank-label { top: 2px; left: 4px; } /* Positioning */
+        .file-label { bottom: 2px; right: 4px; }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease; /* Smoother transition */
+            font-size: 1em;
+            background-color: var(--secondary-color);
+            color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow */
+        }
+        button:hover {
+            background-color: var(--accent-color); /* Accent color on hover */
+            transform: translateY(-2px); /* Slight lift on hover */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Increased shadow on hover */
+        }
+
+        input[type="number"] {
+            padding: 12px;
+            width: 120px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1em;
+            text-align: center; /* Center the number */
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--secondary-color); /* Highlight on focus */
+        }
+
+        .position-number {
+            font-size: 1.2em;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background-color: rgba(52, 152, 219, 0.1);
+            font-weight: 600; /* Bolder */
+        }
+
+        .history {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: rgba(236, 240, 241, 0.4); /* Light background */
+        }
+        .history-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .history-item {
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: 5px;
+            background-color: rgba(52, 152, 219, 0.2);
+            transition: background-color 0.3s ease;
+            user-select: none;
+            font-size: 0.9em;
+            color: var(--primary-color);
+        }
+        .history-item:hover {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        .fen-section {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .fen-display {
+            flex-grow: 1;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1em;
+            border: 2px solid var(--border-color);
+            color: var(--primary-color);
+        }
+        .fen-display:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7); /* Darker overlay */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px; /* More padding */
+            border-radius: 15px; /* Rounded corners */
+            max-width: 600px; /* Wider modal */
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3); /* Stronger shadow */
+        }
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 2em;
+            color: var(--primary-color);
+        }
+        .modal-content ul {
+          list-style: none;  /* Remove the bullets */
+          padding-left: 0;    /* Remove default indentation */
+        }
+
+        .modal-content ul li {
+          margin-bottom: 0.5em; /* Space between items */
+          padding-left: 1.2em;   /* Space for the marker */
+          text-indent: -1.2em;  /* Align text with marker */
+        }
+
+        .modal-content ul li::before {
+          content: "• "; /* Bullet point */
+          color: var(--secondary-color);      /* Change the color */
+          font-weight: bold; /* Make it bold */
+          display: inline-block; /* Needed to add space between the bullet and the text */
+          width: 1em;        /* Space for the bullet */
+          margin-left: -1em; /* Make sure the bullet aligns to the left */
+        }
+
+
+        /* Loader */
+        .loader {
+            border: 5px solid var(--light-color);
+            border-top: 5px solid var(--secondary-color);
+            border-radius: 50%;
+            width: 30px; /* Larger loader */
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto; /* More margin */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Flip button */
+        .flip-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            padding: 8px; /* Larger padding */
+            border-radius: 50%;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .flip-btn:hover{
+          background: rgba(52, 152, 219, 0.1);
+          filter: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px; /* Less padding on small screens */
+            }
+            .controls {
+                flex-direction: column;
+            }
+            .fen-section {
+                flex-direction: column;
+            }
+            input[type="number"], .fen-display {
+                width: 100%; /* Full width on small screens */
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="flip-btn" onclick="toggleBoardFlip()"><i class="fas fa-sync-alt"></i></button>
+        <h1>Chess960 Generator <i class="fas fa-info-circle help-icon" onclick="showHelp()"></i></h1>
+
+        <div class="controls">
+            <button onclick="generateRandom()"><i class="fas fa-dice"></i> Random</button>
+            <input type="number" id="positionInput" min="0" max="959" placeholder="0-959" aria-label="Chess960 Position Number">
+            <button onclick="setPosition()"><i class="fas fa-search"></i> Load</button>
+            <span class="position-number" id="currentPosition"></span>
+        </div>
+
+        <div class="board" id="board"></div>
+        <div class="loader" id="loader"></div>
+
+        <div class="fen-section">
+            <input type="text" class="fen-display" id="fenOutput" readonly aria-label="FEN Output">
+            <button onclick="copyFEN()"><i class="fas fa-copy"></i> Copy</button>
+        </div>
+
+        <div class="lichess-button" style="margin-top: 20px; text-align: center;">
+            <button onclick="openLichessEditor()">Lichess Board Editor</button>
+        </div>
+
+        <div class="history">
+            <h3><i class="fas fa-history"></i> Recent Positions</h3>
+            <div class="history-list" id="historyList"></div>
+        </div>
+
+        <div id="helpModal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close" onclick="hideHelp()">×</span>
+                <h2>Chess960 Rules</h2>
+                <p>Chess960 (Fischer Random Chess) features randomized starting positions with these rules:</p>
+                <ul>
+                    <li>Bishops on opposite-colored squares.</li>
+                    <li>King between rooks.</li>
+                    <li>All 960 positions are unique.</li>
+                    <li>Standard chess rules apply after the initial setup.</li>
+                </ul>
+                 <p><b>How to use:</b></p>
+                <ul>
+                  <li>Click "Random" to get a random position.</li>
+                  <li>Enter a number (0-959) and click "Load" for a specific position.</li>
+                  <li>Use the "Copy" button to copy the FEN.</li>
+                  <li>Click the "Lichess Board Editor" button to open the position in Lichess.</li>
+                </ul>
+
+                <button onclick="hideHelp()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let positions = {};
+        let isFlipped = false;
+        let history = JSON.parse(localStorage.getItem('chess960-history')) || [];
+        const MAX_HISTORY = 10;
+
+        // Improved position data loading:
+        async function loadPositions() {
+            try {
+                const response = await fetch('chess960_positions.txt'); // Load from external file
+                if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const text = await response.text();
+                text.split('|').forEach((pos, i) => positions[i] = pos);
+
+                // Initialize after loading positions
+                createBoard();
+                const urlParams = new URLSearchParams(window.location.search);
+                const initialPosition = urlParams.get('pos') || 0;
+                setPositionByNumber(initialPosition);
+                renderHistory();
+
+            } catch (error) {
+                console.error("Could not load positions:", error);
+                alert("Failed to load Chess960 positions.  Please check your connection and try again, or report the issue.");
+            }
+        }
+
+
+        function createBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const colorClass = (row + col) % 2 === 0 ? 'white' : 'black';
+                    square.className = `square ${colorClass}`;
+                    square.dataset.coord = `${files[col]}${ranks[row]}`;
+
+                    // Add rank labels (numbers)
+                    if (col === 0) {
+                        const rankLabel = document.createElement('span');
+                        rankLabel.className = 'rank-label';
+                        rankLabel.textContent = ranks[row];
+                        square.appendChild(rankLabel);
+                    }
+
+                    // Add file labels (letters)
+                    if (row === 7) {
+                        const fileLabel = document.createElement('span');
+                        fileLabel.className = 'file-label';
+                        fileLabel.textContent = files[col];
+                        square.appendChild(fileLabel);
+                    }
+
+
+                    board.appendChild(square);
+                }
+            }
+        }
+
+
+        function setPiece(row, col, piece, color) {
+            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const ranks = isFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+
+            const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+             if (!square) return; // Check if the square exists
+
+            square.innerHTML = ''; // Clear existing content
+
+            if (piece) {
+                const img = document.createElement('img');
+                img.src = `pieces/${color}${piece.toUpperCase()}.svg`; // Corrected path
+                img.className = 'piece';
+                img.alt = `${color} ${piece}`;
+                if (isFlipped) {
+                    img.classList.add('piece-rotated');
+                }
+                square.appendChild(img);
+            }
+        }
+
+        function setPositionFromString(positionString) {
+            createBoard();
+            const pieces = positionString.split('');
+
+              for (let col = 0; col < 8; col++) {
+                const piece = positionString[col];
+                setPiece(0, col, piece, 'b');
+                setPiece(7, col, piece, 'w');
+                setPiece(1, col, 'p', 'b');
+                setPiece(6, col, 'p', 'w');
+              }
+
+            for (let row = 2; row < 6; row++) {
+                for (let col = 0; col < 8; col++) {
+                    setPiece(row, col, null, null);
+                }
+            }
+            updateFENDisplay();
+        }
+
+
+        function generateRandom() {
+            const position = Math.floor(Math.random() * 960);  //Still up to 960 to keep numbering
+            setPositionByNumber(position);
+        }
+
+        function setPosition() {
+            const input = document.getElementById('positionInput');
+            const position = parseInt(input.value, 10);
+
+            if (position >= 0 && position <= 959) {
+                setPositionByNumber(position);
+            } else {
+                alert('Invalid position number.  Please enter a number between 0 and 959.');
+            }
+        }
+
+        function setPositionByNumber(position) {
+            showLoader(true);
+            setTimeout(() => {
+                document.getElementById('currentPosition').textContent = `Position: ${position}`;
+                document.getElementById('positionInput').value = position;
+
+
+                if (positions[position] === undefined) {
+                    alert("Sorry, could not set position");
+                    showLoader(false);
+                    return;
+
+                }
+                setPositionFromString(positions[position]);
+                addToHistory(position);
+                showLoader(false);
+            }, 0); // Reduced to 0 for faster UI update.
+        }
+
+        function addToHistory(position) {
+          // Convert position to a string before storing
+            const positionString = String(position);
+
+            // Remove the position if it already exists to move it to the front
+            history = history.filter(p => p !== positionString);
+
+            // Add the position to the beginning of the array
+            history.unshift(positionString);
+
+            // Limit the history to the maximum size
+            history = history.slice(0, MAX_HISTORY);
+
+            // Save the updated history to localStorage
+            localStorage.setItem('chess960-history', JSON.stringify(history));
+
+            renderHistory();
+        }
+
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = history.map(pos => {
+                const positionString = positions[pos] || 'Loading...'; // Handle cases where position might not be loaded
+                return `<div class="history-item" onclick="setPositionByNumber(${pos})">
+                    ${pos}: ${positionString}
+                </div>`;
+            }).join('');
+        }
+
+        function generateFEN() {
+            const position = positions[document.getElementById('positionInput').value];
+            if (position === undefined) {
+                return "";
+            }
+
+            let fen = "";
+
+            const ranks = isFlipped ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+            const files = isFlipped ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+
+            for (let row = 0; row < 8; row++) {
+                let emptyCount = 0;
+                for (let col = 0; col < 8; col++) {
+                  const square = document.querySelector(`.square[data-coord="${files[col]}${ranks[row]}"]`);
+                  if(square.firstChild)
+                  {
+                    if (emptyCount > 0) {
+                        fen += emptyCount;
+                        emptyCount = 0;
+                    }
+                    const piece = square.firstChild.alt;
+                    const pieceChar = piece[0] === 'w' ? piece[2].toUpperCase() : piece[2].toLowerCase();
+                    fen += pieceChar;
+
+                  } else {
+                    emptyCount++;
+                  }
+                }
+                if (emptyCount > 0) {
+                    fen += emptyCount;
+                }
+                if (row < 7) {
+                    fen += "/";
+                }
+            }
+            fen += " w KQkq - 0 1";
+            return fen;
+        }
+
+        function updateFENDisplay() {
+            document.getElementById('fenOutput').value = generateFEN();
+        }
+
+        function copyFEN() {
+          const fenOutput = document.getElementById('fenOutput');
+          navigator.clipboard.writeText(fenOutput.value).then(() => {
+            const copyButton = document.querySelector('.fen-section button');
+            copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            }, 2000);
+          });
+        }
+
+        function toggleBoardFlip() {
+            isFlipped = !isFlipped;
+            const board = document.getElementById('board');
+            board.style.transform = isFlipped ? 'rotate(180deg)' : '';
+
+            // Rotate the pieces and the board at the same time
+            const pieces = document.querySelectorAll('.piece');
+            pieces.forEach(piece => {
+                piece.classList.toggle('piece-rotated', isFlipped);
+            });
+              //Re-create after flipping
+             createBoard();
+            setPositionByNumber(document.getElementById('positionInput').value);
+
+
+        }
+
+       function openLichessEditor() {
+            const fen = generateFEN();
+            // Correctly format the FEN for Lichess URL:
+            const fenParts = fen.split(" "); // Split the FEN into its components
+            const boardState = fenParts[0].replace(/\//g, "/");  // Ensure slashes are present
+            const formattedFen = fenParts.join("_");
+            const lichessUrl = `https://lichess.org/editor/${formattedFen}?color=white`;
+            window.open(lichessUrl, '_blank');
+        }
+
+
+        function showHelp() {
+            document.getElementById('helpModal').style.display = 'flex';
+        }
+
+        function hideHelp() {
+            document.getElementById('helpModal').style.display = 'none';
+        }
+
+        function showLoader(show) {
+            document.getElementById('loader').style.display = show ? 'block' : 'none';
+        }
+
+
+        loadPositions(); // Call the async function to load data.
+
+
+    </script>
+</body>
+</html>
