@@ -17,6 +17,7 @@
             --border-color: #ddd;
             --highlight-color: rgba(255, 255, 0, 0.7); /* Yellow highlight */
             --move-color: rgba(0, 255, 0, 0.7); /* Green move color */
+            --hover-border-color: yellow; /* Color for hover border */
         }
 
         body {
@@ -105,6 +106,12 @@
         }
         .square:hover {
             background-color: rgba(0, 0, 0, 0.05); /* Subtle hover feedback */
+        }
+
+        /*  Hover effect for when dragging a piece */
+        .square.drag-over {
+            border: 3px solid var(--hover-border-color) !important; /* Use !important to override other styles */
+            box-sizing: border-box; /* Make sure border is included */
         }
 
         .white { background-color: var(--light-square-color); }
@@ -533,11 +540,18 @@
         }
 
         .move-nav-buttons {
-            display: none; /* Hidden */
+            display: flex; /* Now visible */
             justify-content: center;
             gap: 10px;
             margin-top: 10px;
         }
+        .position-nav-buttons{
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
 
 
     </style>
@@ -557,7 +571,13 @@
             <button onclick="generateRandom(); playSound('positionSound')"><i class="fas fa-dice"></i> Random</button>
             <input type="number" id="positionInput" min="0" max="959" placeholder="0-959" aria-label="Chess960 Position Number">
             <button onclick="setPosition(); playSound('positionSound')"><i class="fas fa-search"></i> Load</button>
-            <button onclick="resetBoard(); playSound('positionSound')"><i class="fas fa-undo"></i> Reset</button> <span class="position-number" id="currentPosition"></span>
+            <button onclick="resetBoard(); playSound('positionSound')"><i class="fas fa-undo"></i> Reset</button>
+            <div class="position-nav-buttons">
+                <button onclick="previousPosition(); playSound('positionSound')"><i class="fas fa-chevron-left"></i> Prev</button>
+                <button onclick="nextPosition(); playSound('positionSound')">Next <i class="fas fa-chevron-right"></i></button>
+            </div>
+
+            <span class="position-number" id="currentPosition"></span>
         </div>
 
         <div class="board" id="board"></div>
@@ -578,7 +598,6 @@
                 <button class="notation-copy-btn" onclick="copyNotations(); playSound('copySound')"><i class="fas fa-copy"></i> Copy Moves</button>
             </div>
             <div class="notation-list" id="notationList"></div>
-            <!-- Removed move navigation buttons -->
         </div>
 
         <div class="history">
@@ -606,7 +625,6 @@
                   <li>Drag and drop pieces to make moves.</li>
                   <li>Click on moves in the notation list to replay them.</li>
                 </ul>
-
                 <button onclick="hideHelp(); playSound('clickSound')">Close</button>
             </div>
         </div>
@@ -674,6 +692,7 @@
                     square.className = `square ${colorClass}`;
                     square.dataset.coord = `${files[col]}${ranks[row]}`;
                     square.addEventListener('dragover', allowDrop);
+                    square.addEventListener('dragleave', dragLeave); // Add dragleave event listener
                     square.addEventListener('drop', dropPiece);
 
                     // Add rank labels (numbers)
@@ -743,7 +762,6 @@
             }
             updateFENDisplay();
             resetMoveHistory(); // Clear move history on new position
-            //Removed updateNavigationButtons()
         }
 
         function resetBoardToFEN(fen) {
@@ -788,6 +806,23 @@
                 alert('Invalid position number.  Please enter a number between 0 and 959.');
             }
         }
+        
+        function previousPosition() {
+            let newPosition = currentPositionNumber - 1;
+            if (newPosition < 0) {
+                newPosition = 959; // Wrap around
+            }
+            setPositionByNumber(newPosition);
+        }
+
+        function nextPosition() {
+            let newPosition = currentPositionNumber + 1;
+            if (newPosition > 959) {
+                newPosition = 0; // Wrap around
+            }
+            setPositionByNumber(newPosition);
+        }
+
 
         function setPositionByNumber(position) {
             showLoader(true);
@@ -930,10 +965,25 @@
         function dragStart(event) {
             draggedPiece = event.target;
             startSquare = event.target.parentNode;
+            setTimeout(() => {
+                draggedPiece.classList.add('hidden');
+            }, 0);
         }
 
         function allowDrop(event) {
             event.preventDefault();
+            const targetSquare = event.target.closest('.square');
+            if(targetSquare) {
+                targetSquare.classList.add('drag-over');
+            }
+        }
+
+        function dragLeave(event) {
+            event.preventDefault();
+            const targetSquare = event.target.closest('.square');
+            if (targetSquare) {
+                targetSquare.classList.remove('drag-over');
+            }
         }
 
         function dropPiece(event) {
@@ -941,19 +991,31 @@
             if (!draggedPiece) return;
 
             const targetSquare = event.target.closest('.square');
-            if (!targetSquare || targetSquare === startSquare) return;
+             //Remove the drag-over class:
+            targetSquare.classList.remove('drag-over');
+
+            if (!targetSquare || targetSquare === startSquare) {
+                 draggedPiece.classList.remove('hidden');
+                 draggedPiece = null;
+                 startSquare = null;
+                return;
+            }
+
 
             // Basic move validation (can move to any empty square or capture)
             if (targetSquare.firstChild) {
                 if (targetSquare.firstChild.alt.startsWith(draggedPiece.alt.split(' ')[0])) { // Check if target has same color piece
-                    return; // Cannot capture own piece (for now, simple check)
+                    draggedPiece.classList.remove('hidden');
+                    draggedPiece = null;
+                    startSquare = null;
+                    return; // Cannot capture own piece
                 }
             }
 
             // Perform move
             movePiece(startSquare, targetSquare);
             playSound('moveSound');
-
+            draggedPiece.classList.remove('hidden'); // Make the piece visible again
             draggedPiece = null;
             startSquare = null;
         }
@@ -1040,10 +1102,6 @@
                 highlightLastMove(move.from, move.to);
             }
         }
-
-        //Removed previousMove()
-        //Removed nextMove()
-
 
         function resetMoveHistory() {
             moveHistory = [];
